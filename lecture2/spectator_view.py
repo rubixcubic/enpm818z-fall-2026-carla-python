@@ -24,6 +24,7 @@ world, including this viewer's car and camera, so a demo that loads a town
 would otherwise leave the window frozen on its last frame with nothing to say
 why. The viewer notices, re-attaches to the new episode, and carries on.
 """
+
 import argparse
 import sys
 
@@ -36,11 +37,15 @@ from demo4_weather import PRESETS
 
 # Chase, bonnet, and a high overhead view. Each is (location, rotation).
 VIEWS = [
-    ("chase", carla.Transform(carla.Location(x=-6.0, z=3.0),
-                              carla.Rotation(pitch=-15.0))),
+    (
+        "chase",
+        carla.Transform(carla.Location(x=-6.0, z=3.0), carla.Rotation(pitch=-15.0)),
+    ),
     ("bonnet", carla.Transform(carla.Location(x=1.4, z=1.4))),
-    ("overhead", carla.Transform(carla.Location(x=-2.0, z=18.0),
-                                 carla.Rotation(pitch=-80.0))),
+    (
+        "overhead",
+        carla.Transform(carla.Location(x=-2.0, z=18.0), carla.Rotation(pitch=-80.0)),
+    ),
 ]
 
 
@@ -58,8 +63,11 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--width", type=int, default=1280)
     ap.add_argument("--height", type=int, default=720)
-    ap.add_argument("--no-spawn", action="store_true",
-                    help="follow an existing ego only, never spawn one")
+    ap.add_argument(
+        "--no-spawn",
+        action="store_true",
+        help="follow an existing ego only, never spawn one",
+    )
     args = ap.parse_args()
 
     # The window opens FIRST, before a single CARLA call. On a freshly started
@@ -97,14 +105,15 @@ def main() -> None:
             stale and every call through it fails.
             """
             new_world = client.get_world()
-            splash(f"connected to {new_world.get_map().name}",
-                   "placing the ego vehicle ...")
+            splash(
+                f"connected to {new_world.get_map().name}",
+                "placing the ego vehicle ...",
+            )
 
             ego = find_ego(new_world)
             if ego is None:
                 if args.no_spawn:
-                    sys.exit("no ego vehicle in the world, and --no-spawn "
-                             "was given")
+                    sys.exit("no ego vehicle in the world, and --no-spawn was given")
                 ego = spawn_ego(new_world, pool)
                 ego.set_autopilot(True)
                 print(f"spawned {ego.type_id} as the ego")
@@ -120,25 +129,34 @@ def main() -> None:
             # something a person watches and exactly what you must not have on
             # a sensor, because it makes the sensor-to-vehicle transform stop
             # being constant.
-            cam = pool.add(new_world.spawn_actor(
-                bp, VIEWS[view][1], attach_to=ego,
-                attachment_type=carla.AttachmentType.SpringArmGhost))
+            cam = pool.add(
+                new_world.spawn_actor(
+                    bp,
+                    VIEWS[view][1],
+                    attach_to=ego,
+                    attachment_type=carla.AttachmentType.SpringArmGhost,
+                )
+            )
             cam.listen(lambda image: frame.__setitem__("image", image))
             frame.clear()
             return new_world, ego, cam
 
         world, vehicle, camera = attach()
 
-        splash("waiting for the first frame ...",
-               "",
-               "On a server that has just started this takes a while.",
-               "It is one-off setup for the first camera, not a hang.")
+        splash(
+            "waiting for the first frame ...",
+            "",
+            "On a server that has just started this takes a while.",
+            "It is one-off setup for the first camera, not a hang.",
+        )
 
         settings = world.get_settings()
         if settings.synchronous_mode:
-            print("note: the server is in synchronous mode. This viewer does "
-                  "not tick it, so\nthe picture only moves while another "
-                  "script is running.")
+            print(
+                "note: the server is in synchronous mode. This viewer does "
+                "not tick it, so\nthe picture only moves while another "
+                "script is running."
+            )
 
         weather = 0
         autopilot = True
@@ -158,8 +176,9 @@ def main() -> None:
                     alive = False
                 if not alive:
                     print("the world was reloaded; re-attaching", flush=True)
-                    splash("the world was reloaded",
-                           "re-attaching to the new episode ...")
+                    splash(
+                        "the world was reloaded", "re-attaching to the new episode ..."
+                    )
                     # Detach the old callback first. The sensor it belonged to
                     # went with the episode, and leaving the client dispatching
                     # for it while this thread makes RPC calls is a good way to
@@ -201,27 +220,38 @@ def main() -> None:
             else:
                 waited += 1
                 if waited % 30 == 0:
-                    splash("waiting for the first frame ...",
-                           f"{waited // 30} s",
-                           "",
-                           "One-off setup for the first camera on this server.")
+                    splash(
+                        "waiting for the first frame ...",
+                        f"{waited // 30} s",
+                        "",
+                        "One-off setup for the first camera on this server.",
+                    )
                 if waited == 900:
-                    print("still no frames after 30 s. If the server is in "
-                          "synchronous mode,\nsomething else has to tick it.")
+                    print(
+                        "still no frames after 30 s. If the server is in "
+                        "synchronous mode,\nsomething else has to tick it."
+                    )
                 clock.tick(30)
                 continue
 
             try:
                 speed = vehicle.get_velocity()
-                kmh = 3.6 * (speed.x ** 2 + speed.y ** 2 + speed.z ** 2) ** 0.5
+                kmh = 3.6 * (speed.x**2 + speed.y**2 + speed.z**2) ** 0.5
             except RuntimeError:
                 kmh = float("nan")
-            hud = (f"{VIEWS[view][0]}  |  {PRESETS[weather][0]}  |  "
-                   f"{kmh:5.1f} km/h  |  autopilot {'on' if autopilot else 'off'}")
+            hud = (
+                f"{VIEWS[view][0]}  |  {PRESETS[weather][0]}  |  "
+                f"{kmh:5.1f} km/h  |  autopilot {'on' if autopilot else 'off'}"
+            )
             screen.blit(font.render(hud, True, (255, 255, 255)), (12, 12))
-            screen.blit(font.render("TAB weather   C camera   R autopilot   "
-                                    "ESC quit", True, (180, 180, 180)),
-                        (12, 36))
+            screen.blit(
+                font.render(
+                    "TAB weather   C camera   R autopilot   ESC quit",
+                    True,
+                    (180, 180, 180),
+                ),
+                (12, 36),
+            )
 
             pygame.display.flip()
             clock.tick(30)

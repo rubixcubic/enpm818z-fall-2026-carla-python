@@ -23,16 +23,25 @@ Note that CARLA has no 'dense fog' preset.  Fog is a set of attributes
 (fog_density, fog_distance, fog_falloff) that you apply on top of a preset,
 which is why the fog entry below is built by hand.
 """
+
 import argparse
 import collections
 import os
 import queue
 
 import carla
-from carla_common import (ActorPool, DEFAULT_DELTA, DEFAULT_HOST, DEFAULT_PORT,
-                          connect, mounts, spawn_ego, synchronous)
+from carla_common import (
+    ActorPool,
+    DEFAULT_DELTA,
+    DEFAULT_HOST,
+    DEFAULT_PORT,
+    connect,
+    mounts,
+    spawn_ego,
+    synchronous,
+)
 
-SETTLE_TICKS = 6        # ticks discarded after each weather change
+SETTLE_TICKS = 6  # ticks discarded after each weather change
 
 
 def dense_fog() -> carla.WeatherParameters:
@@ -50,9 +59,9 @@ def dense_fog() -> carla.WeatherParameters:
         wind_intensity=5.0,
         sun_azimuth_angle=0.0,
         sun_altitude_angle=75.0,
-        fog_density=100.0,       # percent
-        fog_distance=5.0,        # metres before the fog starts
-        fog_falloff=1.0,         # how fast it thickens with height
+        fog_density=100.0,  # percent
+        fog_distance=5.0,  # metres before the fog starts
+        fog_falloff=1.0,  # how fast it thickens with height
         wetness=0.0,
         mie_scattering_scale=0.05,
     )
@@ -79,6 +88,7 @@ def _to_rgb(image):
     which looks exactly like set_weather having no effect.
     """
     import numpy as np
+
     buf = np.frombuffer(image.raw_data, dtype=np.uint8)
     return buf.reshape((image.height, image.width, 4))[:, :, :3][:, :, ::-1].copy()
 
@@ -93,6 +103,7 @@ class _Window:
 
     def __init__(self, width: int, height: int):
         import pygame
+
         self.pygame = pygame
         pygame.init()
         self.screen = pygame.display.set_mode((width, height))
@@ -107,7 +118,9 @@ class _Window:
             if event.type == pygame.QUIT:
                 return False
             if event.type == pygame.KEYDOWN and event.key in (
-                    pygame.K_ESCAPE, pygame.K_q):
+                pygame.K_ESCAPE,
+                pygame.K_q,
+            ):
                 return False
 
         if rgb is not None:
@@ -134,15 +147,18 @@ def _write_rgb(rgb, path: str) -> None:
     """Write an RGB array to disk, with or without OpenCV."""
     try:
         import cv2
+
         cv2.imwrite(path, rgb[:, :, ::-1])
     except ImportError:
         from PIL import Image
+
         Image.fromarray(rgb).save(path)
 
 
 def _write_contact_sheet(panels, path: str) -> None:
     """All six presets in one image, two rows of three, for the slides."""
     import numpy as np
+
     try:
         import cv2
     except ImportError:
@@ -153,13 +169,21 @@ def _write_contact_sheet(panels, path: str) -> None:
         h, w = rgb.shape[:2]
         small = rgb[::2, ::2] if cv2 is None else cv2.resize(rgb, (w // 2, h // 2))
         if cv2 is not None:
-            cv2.putText(small, name, (12, 30), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.8, (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.putText(
+                small,
+                name,
+                (12, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
         scaled.append(small)
 
     while len(scaled) % 3:
         scaled.append(np.zeros_like(scaled[0]))
-    rows = [np.hstack(scaled[i:i + 3]) for i in range(0, len(scaled), 3)]
+    rows = [np.hstack(scaled[i : i + 3]) for i in range(0, len(scaled), 3)]
     sheet = np.vstack(rows)
 
     directory = os.path.dirname(os.path.abspath(path))
@@ -168,6 +192,7 @@ def _write_contact_sheet(panels, path: str) -> None:
         cv2.imwrite(path, sheet[:, :, ::-1])
     else:
         from PIL import Image
+
         Image.fromarray(sheet).save(path)
 
 
@@ -176,12 +201,17 @@ def main() -> None:
     ap.add_argument("--host", default=DEFAULT_HOST)
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--seconds-per-preset", type=float, default=4.0)
-    ap.add_argument("--save-dir", default=None,
-                    help="write one camera frame per preset here")
-    ap.add_argument("--view", action="store_true",
-                    help="show the camera live in a window while it runs")
-    ap.add_argument("--contact-sheet", default=None,
-                    help="write all six presets into one image")
+    ap.add_argument(
+        "--save-dir", default=None, help="write one camera frame per preset here"
+    )
+    ap.add_argument(
+        "--view",
+        action="store_true",
+        help="show the camera live in a window while it runs",
+    )
+    ap.add_argument(
+        "--contact-sheet", default=None, help="write all six presets into one image"
+    )
     args = ap.parse_args()
 
     client = connect(args.host, args.port)
@@ -196,9 +226,14 @@ def main() -> None:
         cam_bp = bp_lib.find("sensor.camera.rgb")
         cam_bp.set_attribute("image_size_x", str(width))
         cam_bp.set_attribute("image_size_y", str(height))
-        camera = pool.add(world.spawn_actor(
-            cam_bp, where["camera"], attach_to=vehicle,
-            attachment_type=carla.AttachmentType.Rigid))
+        camera = pool.add(
+            world.spawn_actor(
+                cam_bp,
+                where["camera"],
+                attach_to=vehicle,
+                attachment_type=carla.AttachmentType.Rigid,
+            )
+        )
 
         li_bp = bp_lib.find("sensor.lidar.ray_cast")
         li_bp.set_attribute("channels", "32")
@@ -210,16 +245,26 @@ def main() -> None:
         # nothing, which is not the lesson.
         li_bp.set_attribute("atmosphere_attenuation_rate", "0.004")
         li_bp.set_attribute("dropoff_general_rate", "0.10")
-        lidar = pool.add(world.spawn_actor(
-            li_bp, where["lidar"], attach_to=vehicle,
-            attachment_type=carla.AttachmentType.Rigid))
+        lidar = pool.add(
+            world.spawn_actor(
+                li_bp,
+                where["lidar"],
+                attach_to=vehicle,
+                attachment_type=carla.AttachmentType.Rigid,
+            )
+        )
 
         ra_bp = bp_lib.find("sensor.other.radar")
         ra_bp.set_attribute("horizontal_fov", "30")
         ra_bp.set_attribute("range", "100")
-        radar = pool.add(world.spawn_actor(
-            ra_bp, where["radar"], attach_to=vehicle,
-            attachment_type=carla.AttachmentType.Rigid))
+        radar = pool.add(
+            world.spawn_actor(
+                ra_bp,
+                where["radar"],
+                attach_to=vehicle,
+                attachment_type=carla.AttachmentType.Rigid,
+            )
+        )
 
         # One queue per sensor, and exactly one message pulled per tick.
         #
@@ -246,8 +291,10 @@ def main() -> None:
         vehicle.set_autopilot(True)
         steps = int(args.seconds_per_preset / DEFAULT_DELTA)
 
-        print(f"{'preset':<12} {'LiDAR pts/sweep':>16} {'RADAR det/scan':>16} "
-              f"{'cam brightness':>15} {'cam contrast':>13}")
+        print(
+            f"{'preset':<12} {'LiDAR pts/sweep':>16} {'RADAR det/scan':>16} "
+            f"{'cam brightness':>15} {'cam contrast':>13}"
+        )
         print("-" * 76)
         for name, weather in PRESETS:
             world.set_weather(weather)
@@ -291,8 +338,9 @@ def main() -> None:
                     # result look like an artefact of averaging; watching it
                     # sit still while the camera dies does not.
                     n = max(stats["lidar_scans"], 1)
-                    if not window.draw(latest.get("rgb"), name,
-                                       stats["lidar_points"] / n):
+                    if not window.draw(
+                        latest.get("rgb"), name, stats["lidar_points"] / n
+                    ):
                         print("\nclosed")
                         return
 
@@ -301,15 +349,15 @@ def main() -> None:
             det = stats["radar_dets"] / max(stats["radar_scans"], 1)
             bright = stats["cam_mean"] / frames
             contrast = stats["cam_contrast"] / frames
-            print(f"{name:<12} {pts:16.0f} {det:16.0f} "
-                  f"{bright:15.1f} {contrast:13.1f}")
+            print(f"{name:<12} {pts:16.0f} {det:16.0f} {bright:15.1f} {contrast:13.1f}")
 
             if "rgb" in latest:
                 if args.save_dir:
                     os.makedirs(args.save_dir, exist_ok=True)
                     slug = name.replace(" ", "_")
-                    _write_rgb(latest["rgb"],
-                               os.path.join(args.save_dir, f"{slug}.png"))
+                    _write_rgb(
+                        latest["rgb"], os.path.join(args.save_dir, f"{slug}.png")
+                    )
                 if args.contact_sheet:
                     panels.append((name, latest["rgb"]))
 
@@ -320,12 +368,14 @@ def main() -> None:
         if window is not None:
             window.close()
 
-        print("\nBrightness and contrast are 0 to 255. The camera degrades in "
-              "two different ways:\nnight takes the brightness, fog takes the "
-              "contrast while leaving the image bright.\nThe LiDAR column "
-              "barely moves, and that is a limit of the simulator rather than "
-              "a\nfact about LiDAR. Ask what your fusion stage should do when "
-              "one sensor degrades\nand another does not.")
+        print(
+            "\nBrightness and contrast are 0 to 255. The camera degrades in "
+            "two different ways:\nnight takes the brightness, fog takes the "
+            "contrast while leaving the image bright.\nThe LiDAR column "
+            "barely moves, and that is a limit of the simulator rather than "
+            "a\nfact about LiDAR. Ask what your fusion stage should do when "
+            "one sensor degrades\nand another does not."
+        )
 
 
 if __name__ == "__main__":

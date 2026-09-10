@@ -8,6 +8,7 @@ and it is why the client timeout is set so high.
 
     python3 demo1_connect.py --town Town03
 """
+
 import argparse
 
 import carla
@@ -22,8 +23,10 @@ def main() -> None:
     args = ap.parse_args()
 
     client = connect(args.host, args.port)
-    print(f"client {client.get_client_version()} / server {client.get_server_version()}")
-    print("available maps:", [m.split('/')[-1] for m in client.get_available_maps()])
+    print(
+        f"client {client.get_client_version()} / server {client.get_server_version()}"
+    )
+    print("available maps:", [m.split("/")[-1] for m in client.get_available_maps()])
 
     world = load_map(client, args.town)
     world.set_weather(carla.WeatherParameters.ClearNoon)
@@ -37,9 +40,15 @@ def main() -> None:
     # A blueprint is a TEMPLATE.  Nothing exists in the world until you spawn
     # an actor from one.
     print("\nthe sensors this course uses:")
-    for wanted in ("sensor.camera.rgb", "sensor.camera.depth",
-                   "sensor.camera.semantic_segmentation", "sensor.lidar.ray_cast",
-                   "sensor.other.radar", "sensor.other.gnss", "sensor.other.imu"):
+    for wanted in (
+        "sensor.camera.rgb",
+        "sensor.camera.depth",
+        "sensor.camera.semantic_segmentation",
+        "sensor.lidar.ray_cast",
+        "sensor.other.radar",
+        "sensor.other.gnss",
+        "sensor.other.imu",
+    ):
         bp = bp_lib.find(wanted)
         attrs = [a.id for a in bp if a.is_modifiable]
         print(f"  {wanted:42s} {len(attrs):2d} modifiable attributes")

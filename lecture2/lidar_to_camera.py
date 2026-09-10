@@ -25,6 +25,7 @@ Omitting P entirely throws every point off the edge of the image, so you get a
 blank overlay.  Getting one SIGN of P wrong is the one to show: the points land,
 the shape is recognisable, and the scene is upside down.
 """
+
 import argparse
 import os
 import queue
@@ -32,8 +33,17 @@ import queue
 import numpy as np
 
 import carla
-from carla_common import (ActorPool, DEFAULT_DELTA, DEFAULT_HOST, DEFAULT_PORT,
-                          camera_intrinsics, connect, mounts, spawn_ego, synchronous)
+from carla_common import (
+    ActorPool,
+    DEFAULT_DELTA,
+    DEFAULT_HOST,
+    DEFAULT_PORT,
+    camera_intrinsics,
+    connect,
+    mounts,
+    spawn_ego,
+    synchronous,
+)
 
 # CARLA (and most robotics) uses x forward, y right, z up.
 # K assumes the optical convention: x right, y down, z forward.
@@ -42,17 +52,15 @@ from carla_common import (ActorPool, DEFAULT_DELTA, DEFAULT_HOST, DEFAULT_PORT,
 #   x_opt =  y_carla        row 0 = [0, 1,  0]
 #   y_opt = -z_carla        row 1 = [0, 0, -1]
 #   z_opt =  x_carla        row 2 = [1, 0,  0]
-AXIS_PERMUTATION = np.array([[0.0, 1.0, 0.0],
-                             [0.0, 0.0, -1.0],
-                             [1.0, 0.0, 0.0]])
+AXIS_PERMUTATION = np.array([[0.0, 1.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]])
 
 # The same matrix with one sign wrong: y_opt = +z instead of -z. This is the
 # mistake that is worth showing, because it is the one that does not look like
 # a mistake. The points still land on the image and still form a recognisable
 # shape; the shape is flipped top to bottom.
-AXIS_PERMUTATION_BAD_SIGN = np.array([[0.0, 1.0, 0.0],
-                                      [0.0, 0.0, 1.0],
-                                      [1.0, 0.0, 0.0]])
+AXIS_PERMUTATION_BAD_SIGN = np.array(
+    [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]
+)
 
 
 def to_matrix(transform: carla.Transform) -> np.ndarray:
@@ -79,18 +87,19 @@ def image_to_array(image: carla.Image) -> np.ndarray:
     return bgra[:, :, :3][:, :, ::-1]
 
 
-def project(points_l: np.ndarray,
-            t_v_from_l: np.ndarray,
-            t_v_from_c: np.ndarray,
-            k: np.ndarray,
-            permutation: np.ndarray | None = AXIS_PERMUTATION
-            ) -> tuple[np.ndarray, np.ndarray]:
+def project(
+    points_l: np.ndarray,
+    t_v_from_l: np.ndarray,
+    t_v_from_c: np.ndarray,
+    k: np.ndarray,
+    permutation: np.ndarray | None = AXIS_PERMUTATION,
+) -> tuple[np.ndarray, np.ndarray]:
     """Carry LiDAR points to pixels. Returns (uv, depth) for points in front.
 
     Every step here matches a line on a slide, in the same order.
     """
     n = points_l.shape[0]
-    homogeneous = np.hstack([points_l[:, :3], np.ones((n, 1))]).T   # 4 x N
+    homogeneous = np.hstack([points_l[:, :3], np.ones((n, 1))]).T  # 4 x N
 
     # ---- L to V: the mounting transform, used exactly as given --------------
     in_vehicle = t_v_from_l @ homogeneous
@@ -99,7 +108,7 @@ def project(points_l: np.ndarray,
     # Read the chain the way you cancel fractions: T_{C<-V} T_{V<-L} leaves
     # C <- L. If the frame letters do not meet in the middle it is backwards.
     t_c_from_v = np.linalg.inv(t_v_from_c)
-    in_camera = (t_c_from_v @ in_vehicle)[:3, :]                    # 3 x N
+    in_camera = (t_c_from_v @ in_vehicle)[:3, :]  # 3 x N
 
     # ---- relabel the axes before K ever sees them ---------------------------
     if permutation is not None:
@@ -118,8 +127,9 @@ def project(points_l: np.ndarray,
     return uv.T, in_camera[2, :]
 
 
-def draw(image: np.ndarray, uv: np.ndarray, depth: np.ndarray,
-         max_range: float = 50.0) -> np.ndarray:
+def draw(
+    image: np.ndarray, uv: np.ndarray, depth: np.ndarray, max_range: float = 50.0
+) -> np.ndarray:
     """Paint the projected points onto the image, coloured near to far."""
     h, w = image.shape[:2]
     u = np.round(uv[:, 0]).astype(int)
@@ -132,7 +142,7 @@ def draw(image: np.ndarray, uv: np.ndarray, depth: np.ndarray,
     colours = np.stack([(255 * (1 - t)), np.zeros_like(t), 255 * t], axis=1)
 
     out = image.copy()
-    for du in (-1, 0, 1):                       # a 3x3 dot, so it is visible
+    for du in (-1, 0, 1):  # a 3x3 dot, so it is visible
         for dv in (-1, 0, 1):
             uu = np.clip(u + du, 0, w - 1)
             vv = np.clip(v + dv, 0, h - 1)
@@ -146,18 +156,34 @@ def main() -> None:
     ap.add_argument("--host", default=DEFAULT_HOST)
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--out", default="projection.png")
-    ap.add_argument("--no-permutation", action="store_true",
-                    help="omit P entirely: every point leaves the image")
-    ap.add_argument("--bad-sign", action="store_true",
-                    help="use P with one sign wrong: points land, flipped")
-    ap.add_argument("--weather", default=None,
-                    help="a carla.WeatherParameters preset name, e.g. "
-                         "ClearNoon. Left alone if not given.")
-    ap.add_argument("--compare", default=None,
-                    help="write a side-by-side of correct and --bad-sign, "
-                         "both built from the SAME captured frame")
-    ap.add_argument("--warmup", type=int, default=30,
-                    help="steps to let the scene settle before capturing")
+    ap.add_argument(
+        "--no-permutation",
+        action="store_true",
+        help="omit P entirely: every point leaves the image",
+    )
+    ap.add_argument(
+        "--bad-sign",
+        action="store_true",
+        help="use P with one sign wrong: points land, flipped",
+    )
+    ap.add_argument(
+        "--weather",
+        default=None,
+        help="a carla.WeatherParameters preset name, e.g. "
+        "ClearNoon. Left alone if not given.",
+    )
+    ap.add_argument(
+        "--compare",
+        default=None,
+        help="write a side-by-side of correct and --bad-sign, "
+        "both built from the SAME captured frame",
+    )
+    ap.add_argument(
+        "--warmup",
+        type=int,
+        default=30,
+        help="steps to let the scene settle before capturing",
+    )
     args = ap.parse_args()
 
     client = connect(args.host, args.port)
@@ -176,18 +202,28 @@ def main() -> None:
         cam_bp.set_attribute("image_size_x", "1280")
         cam_bp.set_attribute("image_size_y", "720")
         cam_bp.set_attribute("fov", "90")
-        camera = pool.add(world.spawn_actor(
-            cam_bp, where["camera"], attach_to=vehicle,
-            attachment_type=carla.AttachmentType.Rigid))
+        camera = pool.add(
+            world.spawn_actor(
+                cam_bp,
+                where["camera"],
+                attach_to=vehicle,
+                attachment_type=carla.AttachmentType.Rigid,
+            )
+        )
 
         li_bp = bp_lib.find("sensor.lidar.ray_cast")
         li_bp.set_attribute("channels", "64")
         li_bp.set_attribute("range", "60")
         li_bp.set_attribute("points_per_second", "600000")
         li_bp.set_attribute("rotation_frequency", str(1.0 / DEFAULT_DELTA))
-        lidar = pool.add(world.spawn_actor(
-            li_bp, where["lidar"], attach_to=vehicle,
-            attachment_type=carla.AttachmentType.Rigid))
+        lidar = pool.add(
+            world.spawn_actor(
+                li_bp,
+                where["lidar"],
+                attach_to=vehicle,
+                attachment_type=carla.AttachmentType.Rigid,
+            )
+        )
 
         # In synchronous mode both sensors produce exactly one message per
         # tick, so a queue each is enough to pair them by frame number. This
@@ -208,7 +244,8 @@ def main() -> None:
         image = images.get(timeout=5.0)
         cloud = clouds.get(timeout=5.0)
         assert image.frame == cloud.frame, (
-            f"frames disagree: {image.frame} vs {cloud.frame}")
+            f"frames disagree: {image.frame} vs {cloud.frame}"
+        )
         print(f"captured frame {image.frame}")
 
         # CARLA gives exact extrinsics, so this isolates the maths from
@@ -218,9 +255,7 @@ def main() -> None:
         t_v_from_c = to_matrix(where["camera"])
 
         f, cx, cy = camera_intrinsics(cam_bp)
-        k = np.array([[f, 0.0, cx],
-                      [0.0, f, cy],
-                      [0.0, 0.0, 1.0]])
+        k = np.array([[f, 0.0, cx], [0.0, f, cy], [0.0, 0.0, 1.0]])
 
         points = lidar_to_array(cloud)
         background = image_to_array(image)
@@ -230,8 +265,10 @@ def main() -> None:
             # two different scenes, and then the picture would be comparing
             # the traffic rather than the maths.
             panels = []
-            for name, perm in (("correct", AXIS_PERMUTATION),
-                               ("one sign wrong", AXIS_PERMUTATION_BAD_SIGN)):
+            for name, perm in (
+                ("correct", AXIS_PERMUTATION),
+                ("one sign wrong", AXIS_PERMUTATION_BAD_SIGN),
+            ):
                 uv, depth = project(points, t_v_from_l, t_v_from_c, k, perm)
                 print(f"  {name}: ", end="")
                 panels.append(draw(background, uv, depth))
@@ -253,22 +290,28 @@ def main() -> None:
         os.makedirs(directory, exist_ok=True)
         try:
             import cv2
+
             cv2.imwrite(out_path, overlay[:, :, ::-1])
         except ImportError:
             from PIL import Image
+
             Image.fromarray(overlay).save(out_path)
         print(f"wrote {out_path}")
 
         if args.no_permutation:
-            print("\nNothing raised. K was handed x forward and z up, read them "
-                  "as x right and\nz along the optical axis, and sent every "
-                  "point off the edge of the image.\nAn empty overlay, and no "
-                  "error to tell you why.")
+            print(
+                "\nNothing raised. K was handed x forward and z up, read them "
+                "as x right and\nz along the optical axis, and sent every "
+                "point off the edge of the image.\nAn empty overlay, and no "
+                "error to tell you why."
+            )
         elif args.bad_sign:
-            print("\nNothing raised, and this time the points did land. That is "
-                  "the dangerous\ncase: the overlay looks like a real result. "
-                  "Compare it against the correct\nrun and the scene is upside "
-                  "down.")
+            print(
+                "\nNothing raised, and this time the points did land. That is "
+                "the dangerous\ncase: the overlay looks like a real result. "
+                "Compare it against the correct\nrun and the scene is upside "
+                "down."
+            )
 
 
 if __name__ == "__main__":

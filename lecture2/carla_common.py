@@ -23,14 +23,14 @@ import carla
 
 DEFAULT_HOST = "localhost"
 DEFAULT_PORT = 2000
-DEFAULT_TIMEOUT = 20.0          # generous for ordinary calls
-LOAD_TIMEOUT = 180.0            # a world load is a full game-engine level load
-DEFAULT_DELTA = 0.05            # 20 Hz simulation step
+DEFAULT_TIMEOUT = 20.0  # generous for ordinary calls
+LOAD_TIMEOUT = 180.0  # a world load is a full game-engine level load
+DEFAULT_DELTA = 0.05  # 20 Hz simulation step
 
 
-def connect(host: str = DEFAULT_HOST,
-            port: int = DEFAULT_PORT,
-            timeout: float = DEFAULT_TIMEOUT) -> carla.Client:
+def connect(
+    host: str = DEFAULT_HOST, port: int = DEFAULT_PORT, timeout: float = DEFAULT_TIMEOUT
+) -> carla.Client:
     """Connect, and fail with something readable if the server is not up.
 
     The most common error in this course is a timeout, and it almost always
@@ -50,13 +50,16 @@ def connect(host: str = DEFAULT_HOST,
         )
     client_ver = client.get_client_version()
     if server != client_ver:
-        print(f"WARNING: client {client_ver} against server {server}. "
-              "Mismatched versions fail confusingly rather than clearly.")
+        print(
+            f"WARNING: client {client_ver} against server {server}. "
+            "Mismatched versions fail confusingly rather than clearly."
+        )
     return client
 
 
-def load_map(client: carla.Client, town: str,
-             timeout: float = LOAD_TIMEOUT) -> carla.World:
+def load_map(
+    client: carla.Client, town: str, timeout: float = LOAD_TIMEOUT
+) -> carla.World:
     """Load a town, and explain a failure instead of reporting a bare timeout.
 
     Two things this gets right that a plain load_world call does not.
@@ -173,9 +176,12 @@ class ActorPool:
         self.destroy()
 
 
-def spawn_ego(world: carla.World, pool: ActorPool,
-              blueprint: str = "vehicle.tesla.model3",
-              spawn_index: int | None = None) -> carla.Vehicle:
+def spawn_ego(
+    world: carla.World,
+    pool: ActorPool,
+    blueprint: str = "vehicle.tesla.model3",
+    spawn_index: int | None = None,
+) -> carla.Vehicle:
     """Spawn the ego vehicle at the first spawn point that is actually free.
 
     try_spawn_actor returns None instead of raising when a spawn point is
@@ -216,8 +222,9 @@ def mounts(vehicle: carla.Vehicle) -> dict[str, carla.Transform]:
         # on the roof, clear line of sight all round
         "lidar": carla.Transform(carla.Location(z=roof_z + 0.10)),
         # front bumper, at bumper height, looking forward
-        "radar": carla.Transform(carla.Location(x=e.x, z=0.5 * e.z),
-                                 carla.Rotation(pitch=5.0)),
+        "radar": carla.Transform(
+            carla.Location(x=e.x, z=0.5 * e.z), carla.Rotation(pitch=5.0)
+        ),
         # position sensors sit wherever; put them at the origin
         "imu": carla.Transform(),
         "gnss": carla.Transform(),
