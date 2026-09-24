@@ -7,7 +7,29 @@ only five and spaced irregularly. A light match fits 23 places at once; a
 niche match fits five. No bell curve can say that, so the belief is a crowd of
 particles.
 
-Needs only `numpy` and `matplotlib`.
+## Requirements
+
+Python 3 with `numpy` and `matplotlib`. Tested on Ubuntu 24.04 with Python 3.12,
+numpy 1.26, and both matplotlib 3.6 (what `apt` installs) and 3.10 (from pip).
+
+```bash
+# Ubuntu 24.04 (recommended: system pip is blocked there, PEP 668)
+sudo apt install python3-numpy python3-matplotlib python3-tk
+
+# any other system, in a virtual environment
+python3 -m venv ~/l3env && source ~/l3env/bin/activate
+pip install numpy matplotlib
+```
+
+`python3-tk` provides the window matplotlib draws into. Without it the live
+window cannot open; use `--html` to get the same animation as a web page.
+
+**Seeing "Unable to import Axes3D ... multiple versions of Matplotlib"?** You
+have matplotlib from both `apt` and `pip`. It is harmless here (no script uses
+3D), but to clear it keep one copy, for example
+`python3 -m pip uninstall matplotlib` to fall back to the `apt` one.
+
+## Running it
 
 ```bash
 python3 pf_tunnel.py --make-csv          # writes pf_drive.csv and tunnel_map.csv

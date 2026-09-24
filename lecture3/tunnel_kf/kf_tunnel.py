@@ -22,6 +22,7 @@ Usage
     python3 kf_tunnel.py tunnel_drive.csv         # run the filter, live window
     python3 kf_tunnel.py tunnel_drive.csv --html tunnel_kf.html   # web page instead
     python3 kf_tunnel.py tunnel_drive.csv --snapshot frame.png    # one still image
+    python3 kf_tunnel.py tunnel_drive.csv --no-control  # ignore the IMU: brake goes into w
 
 Needs numpy and matplotlib only.
 """
@@ -38,6 +39,9 @@ SIGN_SPACING = 25.0      # m between emergency exit signs in the HD map
 SIGN_Y = 3.4             # signs hang on the north wall
 LANE_Y = -1.75           # the car drives in the south lane
 SIGN_SIGMA_Y = 0.2       # m: a sign on the wall fixes the distance to the wall well
+SIGMA_A_Y = 0.3          # m/s^2: Q's sideways part, the IMU's sideways noise
+BRAKE = (8.0, 12.0, -1.0)    # s, s, m/s^2: brakes for a slower car
+SPEED_UP = (20.0, 24.0, 0.8) # s, s, m/s^2: speeds up again
 
 
 # ---------------------------------------------------------------------------
@@ -51,8 +55,8 @@ def make_csv(path, seed=702):
 
     # what the car really does: cruise, brake for a slower car, speed up again
     ax = np.zeros(n)
-    ax[(t >= 8) & (t < 12)] = -1.0
-    ax[(t >= 20) & (t < 24)] = +0.8
+    for t0, t1, a in (BRAKE, SPEED_UP):
+        ax[(t >= t0) & (t < t1)] = a
     ax += 0.3 * np.sin(2 * np.pi * t / 15.0) * (t > 28)
     # a small sideways wander inside the lane. The sideways speed starts at
     # -A so that it swings evenly around zero; starting it at zero would make it
@@ -110,8 +114,12 @@ def load_csv(path):
 # ---------------------------------------------------------------------------
 # 2. The Kalman filter: everything the slides built, in about 30 lines
 # ---------------------------------------------------------------------------
-def run_kf(d, sigma_a=0.5, sigma_sign=1.0):
-    """Run the filter over the whole drive. Returns every step's x, P and K."""
+def run_kf(d, sigma_a=0.5, sigma_sign=1.0, use_control=True, with_prior=False):
+    """Run the filter over the whole drive. Returns every step's x, P and K.
+
+    with_prior=True also returns the prediction x^-, P^- at every step, before
+    any update: the slides' "after predict" ellipse comes from there.
+    """
     F = np.array([[1, 0, DT, 0],
                   [0, 1, 0, DT],
                   [0, 0, 1, 0],
@@ -120,7 +128,12 @@ def run_kf(d, sigma_a=0.5, sigma_sign=1.0):
                   [0, 0.5 * DT**2],
                   [DT, 0],
                   [0, DT]])                       # acceleration -> state change
-    Q = sigma_a**2 * B @ B.T                      # how wrong the rule usually is
+    # how wrong the rule usually is: the acceleration the IMU gets wrong,
+    # pushed through B. Along the tunnel sigma_a (the slider) must also cover
+    # the IMU's bias; across it only the IMU's noise, 0.3 m/s^2, because a car
+    # in its lane has no sideways bias to cover. So predict stretches the
+    # ellipse most along the tunnel.
+    Q = B @ np.diag([sigma_a**2, SIGMA_A_Y**2]) @ B.T
     H = np.array([[1, 0, 0, 0],
                   [0, 1, 0, 0]], float)           # the sign match gives position
     # how noisy the sign match is: sigma_sign along the tunnel, SIGN_SIGMA_Y
@@ -137,6 +150,7 @@ def run_kf(d, sigma_a=0.5, sigma_sign=1.0):
     #   Ks[k]          the along-tunnel gain K[0, 0]; NaN on rows with no update
     n = len(d["t"])
     xs, Ps, Ks = np.zeros((n, 4)), np.zeros((n, 4, 4)), np.full(n, np.nan)
+    xp, Pp = np.zeros((n, 4)), np.zeros((n, 4, 4))
     for k in range(n):
         if k > 0:
             # ---- PREDICT: carry the belief from t[k-1] to t[k] -----------------
@@ -144,6 +158,11 @@ def run_kf(d, sigma_a=0.5, sigma_sign=1.0):
             # interval [t[k-1], t[k]), so it drives this step: a zero-order hold.
             # Using row k instead would let the filter see the future by 0.1 s.
             u = np.array([d["imu_ax"][k - 1], d["imu_ay"][k - 1]])   # (2,)
+            # use_control=False is the filter from before B u existed: it
+            # ignores the IMU, so the brake is no longer predicted and falls
+            # back into w. Q must then be large enough to cover a 1 m/s^2 brake.
+            if not use_control:
+                u = np.zeros(2)
 
             # Mean: constant-velocity motion (F) plus the known push (B u).
             # F couples position to velocity: p += v*dt. B u adds 0.5*a*dt^2 to
@@ -156,6 +175,7 @@ def run_kf(d, sigma_a=0.5, sigma_sign=1.0):
             # IMU noise and bias. With no update, trace(P) only grows.
             P = F @ P @ F.T + Q                                        # (4, 4)
 
+        xp[k], Pp[k] = x, P     # the prediction, before any update
         # Most rows have no sign match: sign_x is NaN there, so we skip the
         # update and the prediction stands as the estimate.
         if not np.isnan(d["sign_x"][k]):
@@ -191,6 +211,8 @@ def run_kf(d, sigma_a=0.5, sigma_sign=1.0):
 
             Ks[k] = K[0, 0]     # along-tunnel position gain, for the readout
         xs[k], Ps[k] = x, P
+    if with_prior:
+        return xs, Ps, Ks, xp, Pp
     return xs, Ps, Ks
 
 
@@ -205,9 +227,42 @@ def ellipse_xy(P2, n_sigma=1.0):
     return (V @ np.diag(n_sigma * np.sqrt(np.maximum(w, 0))) @ circle).T
 
 
-def build_figure(d, sigma_a, sigma_sign, interactive=True):
+
+def add_help_panel(fig, sections, rect=(0.745, 0.10, 0.245, 0.84), width=56, fs=8.2):
+    """A text panel beside the plots: what each panel shows, and what to try.
+
+    sections: [(heading, [(subheading, [bullet, ...]), ...]), ...]
+    Headings are bold, subheadings semibold, bullets indented under them.
+    """
+    import textwrap
+    from matplotlib.patches import FancyBboxPatch
+    ax = fig.add_axes(rect)
+    ax.set_axis_off()
+    ax.add_patch(FancyBboxPatch((0, 0), 1, 1, boxstyle="round,pad=0,rounding_size=0.015",
+                                transform=ax.transAxes, fc="#F6F7F9", ec="#C6CBD1", lw=1))
+    line = fs * 1.28 / (fig.get_figheight() * 72 * rect[3])   # one text line, axes units
+    y = 0.978
+    for heading, groups in sections:
+        ax.text(0.035, y, heading, transform=ax.transAxes, va="top", fontsize=fs + 1.2,
+                fontweight="bold", color="#1E2939")
+        y -= line * 1.5
+        for sub, bullets in groups:
+            ax.text(0.05, y, sub, transform=ax.transAxes, va="top", fontsize=fs + 0.2,
+                    fontweight="semibold", color="#2D6CA2")
+            y -= line * 1.2
+            for b in bullets:
+                lines = textwrap.wrap(b, width, initial_indent="\u2022 ",
+                                      subsequent_indent="   ", break_on_hyphens=False)
+                ax.text(0.075, y, "\n".join(lines), transform=ax.transAxes, va="top",
+                        fontsize=fs, color="#1E2939", linespacing=1.28)
+                y -= line * len(lines)
+            y -= line * 0.45
+        y -= line * 0.5
+    return ax
+
+def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
     import matplotlib.pyplot as plt
-    from matplotlib.widgets import Button, Slider
+    from matplotlib.widgets import Button, CheckButtons, Slider
 
     t = d["t"]
     n = len(t)
@@ -216,7 +271,7 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True):
     res = {}
 
     def rerun():
-        res["xs"], res["Ps"], res["Ks"] = run_kf(d, state["sa"], state["ss"])
+        res["xs"], res["Ps"], res["Ks"] = run_kf(d, state["sa"], state["ss"], state["uc"])
         res["sig"] = np.sqrt(res["Ps"][:, 0, 0])
         res["err"] = res["xs"][:, 0] - d["true_x"]
         line_sig.set_data(t, res["sig"])
@@ -225,21 +280,23 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True):
                                      np.r_[res["sig"], -res["sig"][::-1]]]))
         rmse = np.sqrt(np.mean(res["err"]**2))
         inside = np.mean(np.abs(res["err"]) <= res["sig"])
+        tag = "" if state["uc"] else "    IMU IGNORED: the brake is in w"
         stats.set_text(f"error (RMSE) {rmse:.2f} m    true error inside 1-sigma: "
-                       f"{100 * inside:.0f}%  (honest: about 68%)")
+                       f"{100 * inside:.0f}%  (honest: about 68%){tag}")
+        stats.set_color("#1E2939" if state["uc"] else "#D9694A")
         ax_sig.set_ylim(0, max(2.2, 1.1 * res["sig"].max()))
         lim = max(3.0, 1.2 * np.abs(res["err"]).max())
         ax_err.set_ylim(-lim, lim)
 
-    state["sa"], state["ss"] = sigma_a, sigma_sign
-    fig = plt.figure(figsize=(13, 8))
+    state["sa"], state["ss"], state["uc"] = sigma_a, sigma_sign, use_control
+    fig = plt.figure(figsize=(17.5, 8))
     fig.canvas.manager.set_window_title("Kalman filter in a tunnel") if interactive else None
     gs = fig.add_gridspec(3, 2, height_ratios=[1.15, 1, 0.22], hspace=0.55,
-                          left=0.06, right=0.98, top=0.93, bottom=0.05)
+                          left=0.05, right=0.725, top=0.93, bottom=0.05)
 
     # --- top: the tunnel from above, following the car
     ax_top = fig.add_subplot(gs[0, :])
-    ax_top.set_title("GNSS lost: the tunnel from above", loc="left", fontsize=13,
+    ax_top.set_title("GNSS lost: the tunnel", loc="left", fontsize=13,
                      fontweight="bold")
     ax_top.axhspan(-3.5, 3.5, color="#E9ECEF", zorder=0)
     ax_top.axhline(3.5, color="#1E2939", lw=3); ax_top.axhline(-3.5, color="#1E2939", lw=3)
@@ -255,6 +312,22 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True):
     ax_top.set_xlabel("along the tunnel (m)"); ax_top.set_yticks([])
     ax_top.legend(loc="lower right", bbox_to_anchor=(1.0, 1.0), ncol=5, frameon=False,
                   fontsize=10, handletextpad=0.4, columnspacing=1.2)
+    # a zoom on the car, so the ellipse's shape is visible: it grows along the
+    # tunnel between signs and snaps long and thin at each sign match
+    ax_zoom = ax_top.inset_axes([0.795, 0.04, 0.2, 0.92])
+    ax_zoom.set_facecolor("#E9ECEF")
+    ax_zoom.set_xticks([]); ax_zoom.set_yticks([])
+    for sp in ax_zoom.spines.values():
+        sp.set_color("#1E2939"); sp.set_linewidth(1.5)
+    ax_zoom.text(0.5, 0.97, "zoom: grid = 1 m", transform=ax_zoom.transAxes, ha="center",
+                 va="top", fontsize=9, color="#1E2939",
+                 bbox=dict(fc="white", ec="none", alpha=0.8, pad=1.5))
+    true_z, = ax_zoom.plot([], [], "s", color="#1E2939", ms=9)
+    ell_z, = ax_zoom.plot([], [], color="#2D6CA2", lw=2.2)
+    est_z, = ax_zoom.plot([], [], "o", color="#2D6CA2", ms=6)
+    match_z, = ax_zoom.plot([], [], "X", color="#D9694A", ms=11)
+    grid_z = [ax_zoom.axvline(0, color="white", lw=0.8) for _ in range(9)] + \
+             [ax_zoom.axhline(0, color="white", lw=0.8) for _ in range(9)]
     info = ax_top.text(0.01, 0.95, "", transform=ax_top.transAxes, va="top",
                        fontsize=11, family="monospace",
                        bbox=dict(fc="white", ec="#C6CBD1", alpha=0.9))
@@ -278,8 +351,60 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True):
     ax_err.axhline(0, color="#7A828C", lw=1)
     now_err = ax_err.axvline(0, color="#1E2939", lw=1)
     ax_err.set_xlim(t[0], t[-1]); ax_err.set_xlabel("time (s)"); ax_err.set_ylabel("m")
+    # when the car brakes and speeds up: the IMU sees it, and B u predicts it
+    for a_ in (ax_sig, ax_err):
+        a_.axvspan(BRAKE[0], BRAKE[1], color="#FBE3DC", zorder=0)
+        a_.axvspan(SPEED_UP[0], SPEED_UP[1], color="#E3F1EC", zorder=0)
+    for t0, t1, label in ((BRAKE[0], BRAKE[1], "brake"), (SPEED_UP[0], SPEED_UP[1], "speed up")):
+        ax_sig.text((t0 + t1) / 2, 0.97, label, transform=ax_sig.get_xaxis_transform(),
+                    ha="center", va="top", fontsize=9, color="#7A828C")
 
-    stats = fig.text(0.5, 0.965, "", ha="center", fontsize=12, fontweight="bold")
+    stats = fig.text(0.39, 0.965, "", ha="center", fontsize=12, fontweight="bold")
+    add_help_panel(fig, [
+        ("What you see", [
+            ("Top: the tunnel", [
+                "dark square: the true car",
+                "blue dot: the estimate",
+                "blue ellipse: its 1-sigma uncertainty, P",
+                "green squares: exit signs in the HD map",
+                "orange X: a sign match (the measurement z)",
+                "zoom, right: the ellipse's shape, long along the tunnel "
+                "and thin across it",
+            ]),
+            ("Bottom left: sigma along the tunnel", [
+                "climbs while only the IMU drives the prediction",
+                "drops at every sign match (thin orange lines)",
+                "red shading: braking; green: speeding up",
+            ]),
+            ("Bottom right: the honesty check", [
+                "orange line: the true error",
+                "blue band: the +/- sigma the filter reports",
+                "honest: the line stays inside about 68% of the time",
+            ]),
+        ]),
+        ("Try this", [
+            ("Raise Q (sigma_a)", [
+                "the ellipse and the band grow faster between signs",
+                "each match pulls the estimate harder",
+                "at 3: 84% inside, underconfident",
+            ]),
+            ("Lower Q", [
+                "the band gets thin and the error walks out of it",
+                "at 0.01: 25% inside, overconfident (the dangerous case)",
+            ]),
+            ("Raise R (sigma_sign)", [
+                "smaller jumps at each match",
+                "the estimate drifts with the IMU's bias between signs",
+            ]),
+            ("Lower R", [
+                "the estimate snaps to every match, noise and all",
+            ]),
+            ("Untick 'use the IMU'", [
+                "the brake is no longer predicted",
+                "8 to 12 s: the estimate runs ahead of the car and out of the band",
+            ]),
+        ]),
+    ])
     rerun()
 
     def draw(k):
@@ -297,12 +422,27 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True):
             match_dot.set_data([d["sign_x"][m]], [d["sign_y"][m]])
         else:
             match_dot.set_data([], [])
+        # the zoom follows the estimate, on a fixed 1 m grid
+        ex, ey = xs[k, 0], xs[k, 1]
+        ax_zoom.set_xlim(ex - 3.2, ex + 3.2); ax_zoom.set_ylim(ey - 3.6, ey + 3.6)
+        gx0, gy0 = np.floor(ex) - 4, np.floor(ey) - 4
+        for i, g in enumerate(grid_z[:9]):
+            g.set_xdata([gx0 + i, gx0 + i])
+        for i, g in enumerate(grid_z[9:]):
+            g.set_ydata([gy0 + i, gy0 + i])
+        true_z.set_data([cx], [d["true_y"][k]])
+        ell_z.set_data(e[:, 0], e[:, 1]); est_z.set_data([ex], [ey])
+        match_z.set_data(*match_dot.get_data())
         last_k = [m for m in matches if m <= k]
         kline = f"K {res['Ks'][last_k[-1]]:.2f}" if last_k else "K  -  "
+        doing = ("BRAKING" if BRAKE[0] <= t[k] < BRAKE[1] else
+                 "speeding up" if SPEED_UP[0] <= t[k] < SPEED_UP[1] else "cruising")
         info.set_text(f"t {t[k]:5.1f} s   sigma {res['sig'][k]:.2f} m   {kline}   "
-                      f"speed {xs[k, 2]:.1f} m/s")
+                      f"speed {xs[k, 2]:.1f} m/s   u = IMU a_x {d['imu_ax'][k]:+.2f} m/s^2"
+                      f"   {doing}")
         now_sig.set_xdata([t[k], t[k]]); now_err.set_xdata([t[k], t[k]])
-        return true_dot, est_dot, ell, match_dot, info, now_sig, now_err
+        return (true_dot, est_dot, ell, match_dot, info, now_sig, now_err,
+                true_z, ell_z, est_z, match_z)
 
     if not interactive:
         return fig, draw, n
@@ -310,12 +450,14 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True):
     # --- controls
     ax_play = fig.add_axes([0.06, 0.012, 0.07, 0.04])
     ax_rst = fig.add_axes([0.14, 0.012, 0.07, 0.04])
-    ax_sa = fig.add_axes([0.36, 0.02, 0.20, 0.025])
-    ax_ss = fig.add_axes([0.73, 0.02, 0.20, 0.025])
+    ax_sa = fig.add_axes([0.36, 0.042, 0.22, 0.022])
+    ax_ss = fig.add_axes([0.36, 0.010, 0.22, 0.022])
+    ax_uc = fig.add_axes([0.72, 0.008, 0.20, 0.055])
     b_play = Button(ax_play, "Pause")
     b_rst = Button(ax_rst, "Restart")
     s_sa = Slider(ax_sa, "Q: sigma_a (m/s^2)", 0.01, 3.0, valinit=sigma_a)
     s_ss = Slider(ax_ss, "R: sigma_sign (m)", 0.1, 6.0, valinit=sigma_sign)
+    chk = CheckButtons(ax_uc, ["use the IMU (B u)"], [use_control])
 
     def on_play(_):
         state["playing"] = not state["playing"]
@@ -324,10 +466,11 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True):
         state["k"] = 0
     def on_slide(_):
         state["sa"], state["ss"] = s_sa.val, s_ss.val
+        state["uc"] = chk.get_status()[0]
         rerun(); draw(state["k"]); fig.canvas.draw_idle()
     b_play.on_clicked(on_play); b_rst.on_clicked(on_rst)
-    s_sa.on_changed(on_slide); s_ss.on_changed(on_slide)
-    fig._keep = (b_play, b_rst, s_sa, s_ss)          # keep widgets alive
+    s_sa.on_changed(on_slide); s_ss.on_changed(on_slide); chk.on_clicked(on_slide)
+    fig._keep = (b_play, b_rst, s_sa, s_ss, chk)     # keep widgets alive
 
     def step(_):
         if state["playing"]:
@@ -342,6 +485,8 @@ def main():
     ap.add_argument("--make-csv", action="store_true", help="write the dataset and exit")
     ap.add_argument("--sigma-a", type=float, default=0.5, help="Q: sigma of the unknown acceleration")
     ap.add_argument("--sigma-sign", type=float, default=1.0, help="R: sigma of a sign match")
+    ap.add_argument("--no-control", action="store_true",
+                    help="ignore the IMU (B u = 0): the brake falls back into w")
     ap.add_argument("--html", help="write the animation to this .html file instead")
     ap.add_argument("--snapshot", help="write one still frame to this .png file")
     ap.add_argument("--frame", type=float, default=11.0, help="time (s) for --snapshot")
@@ -354,11 +499,15 @@ def main():
         sys.exit(f"{a.csv} not found. Run: python3 kf_tunnel.py --make-csv")
     d = load_csv(a.csv)
 
-    xs, Ps, _ = run_kf(d, a.sigma_a, a.sigma_sign)
+    uc = not a.no_control
+    xs, Ps, _ = run_kf(d, a.sigma_a, a.sigma_sign, uc)
     err = xs[:, 0] - d["true_x"]
     rmse = np.sqrt(np.mean(err**2))
-    print(f"sigma_a {a.sigma_a:.2f}, sigma_sign {a.sigma_sign:.2f}: "
-          f"RMSE along the tunnel {rmse:.2f} m, final sigma {np.sqrt(Ps[-1, 0, 0]):.2f} m")
+    inside = np.mean(np.abs(err) <= np.sqrt(Ps[:, 0, 0]))
+    print(f"{'IMU ignored (no B u), ' if not uc else ''}"
+          f"sigma_a {a.sigma_a:.2f}, sigma_sign {a.sigma_sign:.2f}: "
+          f"RMSE along the tunnel {rmse:.2f} m, final sigma {np.sqrt(Ps[-1, 0, 0]):.2f} m, "
+          f"inside 1-sigma {100 * inside:.0f}%")
 
     import matplotlib
     if a.html or a.snapshot:
@@ -368,14 +517,14 @@ def main():
 
     if a.snapshot:
         # the full window, controls included, stopped at time --frame
-        fig, step, n = build_figure(d, a.sigma_a, a.sigma_sign, interactive=True)
+        fig, step, n = build_figure(d, a.sigma_a, a.sigma_sign, interactive=True, use_control=uc)
         for _ in range(int(round(a.frame / DT))):
             step(None)
         fig.savefig(a.snapshot, dpi=150)
         print("wrote", a.snapshot)
         return
     if a.html:
-        fig, draw, n = build_figure(d, a.sigma_a, a.sigma_sign, interactive=False)
+        fig, draw, n = build_figure(d, a.sigma_a, a.sigma_sign, interactive=False, use_control=uc)
         fig.set_dpi(70)                                   # keeps the page small
         anim = FuncAnimation(fig, draw, frames=range(0, n, 4), interval=200, blit=False)
         matplotlib.rcParams["animation.embed_limit"] = 200
@@ -387,7 +536,7 @@ def main():
         print("wrote", a.html)
         return
 
-    fig, step, n = build_figure(d, a.sigma_a, a.sigma_sign, interactive=True)
+    fig, step, n = build_figure(d, a.sigma_a, a.sigma_sign, interactive=True, use_control=uc)
     anim = FuncAnimation(fig, step, interval=50, blit=False, cache_frame_data=False)
     fig._anim = anim
     plt.show()

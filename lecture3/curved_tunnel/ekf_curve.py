@@ -320,6 +320,39 @@ def draw_tunnel(ax):
     return sg
 
 
+
+def add_help_panel(fig, sections, rect=(0.745, 0.10, 0.245, 0.84), width=56, fs=8.2):
+    """A text panel beside the plots: what each panel shows, and what to try.
+
+    sections: [(heading, [(subheading, [bullet, ...]), ...]), ...]
+    Headings are bold, subheadings semibold, bullets indented under them.
+    """
+    import textwrap
+    from matplotlib.patches import FancyBboxPatch
+    ax = fig.add_axes(rect)
+    ax.set_axis_off()
+    ax.add_patch(FancyBboxPatch((0, 0), 1, 1, boxstyle="round,pad=0,rounding_size=0.015",
+                                transform=ax.transAxes, fc="#F6F7F9", ec="#C6CBD1", lw=1))
+    line = fs * 1.28 / (fig.get_figheight() * 72 * rect[3])   # one text line, axes units
+    y = 0.978
+    for heading, groups in sections:
+        ax.text(0.035, y, heading, transform=ax.transAxes, va="top", fontsize=fs + 1.2,
+                fontweight="bold", color="#1E2939")
+        y -= line * 1.5
+        for sub, bullets in groups:
+            ax.text(0.05, y, sub, transform=ax.transAxes, va="top", fontsize=fs + 0.2,
+                    fontweight="semibold", color="#2D6CA2")
+            y -= line * 1.2
+            for b in bullets:
+                lines = textwrap.wrap(b, width, initial_indent="\u2022 ",
+                                      subsequent_indent="   ", break_on_hyphens=False)
+                ax.text(0.075, y, "\n".join(lines), transform=ax.transAxes, va="top",
+                        fontsize=fs, color="#1E2939", linespacing=1.28)
+                y -= line * len(lines)
+            y -= line * 0.45
+        y -= line * 0.5
+    return ax
+
 def build_figure(d, sigma_w, sigma_range, interactive=True):
     import matplotlib.pyplot as plt
     from matplotlib.widgets import Button, CheckButtons, Slider
@@ -330,14 +363,14 @@ def build_figure(d, sigma_w, sigma_range, interactive=True):
     state = {"k": 0, "playing": True, "sw": sigma_w, "sr": sigma_range, "wrong": False}
     res = {}
 
-    fig = plt.figure(figsize=(13, 8.4))
+    fig = plt.figure(figsize=(17.5, 8.4))
     if interactive:
         fig.canvas.manager.set_window_title("EKF in a curved tunnel")
     gs = fig.add_gridspec(2, 2, width_ratios=[1.05, 1.25], hspace=0.42, wspace=0.16,
-                          left=0.04, right=0.98, top=0.90, bottom=0.15)
+                          left=0.03, right=0.725, top=0.90, bottom=0.15)
 
     ax_top = fig.add_subplot(gs[:, 0])
-    ax_top.set_title("The tunnel bends: seen from above", loc="left", fontsize=12,
+    ax_top.set_title("The curved tunnel", loc="left", fontsize=12,
                      fontweight="bold")
     signs = draw_tunnel(ax_top)
     trail, = ax_top.plot([], [], color="#2D6CA2", lw=1, alpha=0.6)
@@ -376,7 +409,51 @@ def build_figure(d, sigma_w, sigma_range, interactive=True):
     ax_sig.text((t_in + t_out) / 2, 0.96, "in the bend", ha="center", va="top",
                 transform=ax_sig.get_xaxis_transform(), fontsize=9, color="#7A828C")
 
-    stats = fig.text(0.5, 0.955, "", ha="center", fontsize=12, fontweight="bold")
+    stats = fig.text(0.38, 0.955, "", ha="center", fontsize=12, fontweight="bold")
+    add_help_panel(fig, [
+        ("What you see", [
+            ("Left: the curved tunnel", [
+                "dark square: the true car",
+                "blue dot and arrow: the estimate and its heading",
+                "dashed fan: +/- 1 sigma of heading",
+                "blue ellipse: the position uncertainty",
+                "orange line: the camera's range and bearing to the sign "
+                "it just matched",
+            ]),
+            ("Top right: sigma of the heading", [
+                "climbs while only the gyro drives the prediction",
+                "drops at each match: the bearing tells the filter which "
+                "way the nose points",
+                "yellow shading: the car is in the bend",
+            ]),
+            ("Bottom right: the honesty check", [
+                "orange line: the true heading error",
+                "blue band: the +/- sigma the filter reports",
+                "honest: the line stays inside about 68% of the time",
+            ]),
+        ]),
+        ("Try this", [
+            ("Raise Q (gyro noise)", [
+                "sigma climbs faster between signs; the band widens",
+                "at 8 deg/s: 92% inside, underconfident",
+            ]),
+            ("Lower Q", [
+                "the band is too thin to cover the gyro's bias",
+                "at 0.1 deg/s: 23% inside, overconfident",
+            ]),
+            ("Raise R (range noise)", [
+                "the filter trusts each match less; corrections shrink",
+            ]),
+            ("Lower R", [
+                "at 0.1 m it chases every match; the position error grows",
+            ]),
+            ("Tick 'wrong sign in the Jacobian'", [
+                "the filter still runs, with no error message",
+                "the heading error triples and leaves the band",
+                "that is why you run --check-jacobian first",
+            ]),
+        ]),
+    ])
 
     def rerun():
         res["xs"], res["Ps"] = run_ekf(d, state["sw"], state["sr"], state["wrong"])

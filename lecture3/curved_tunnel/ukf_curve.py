@@ -180,6 +180,32 @@ def report_row(d, r, dark_until):
 # ---------------------------------------------------------------------------
 # 3. The live window
 # ---------------------------------------------------------------------------
+
+def add_help_panel(fig, sections, rect=(0.745, 0.13, 0.245, 0.80), width=58, fs=8.6):
+    """A text panel beside the plots: what each panel shows, and what to try.
+
+    sections is a list of (heading, [bullet, bullet, ...]).
+    """
+    import textwrap
+    from matplotlib.patches import FancyBboxPatch
+    ax = fig.add_axes(rect)
+    ax.set_axis_off()
+    ax.add_patch(FancyBboxPatch((0, 0), 1, 1, boxstyle="round,pad=0,rounding_size=0.015",
+                                transform=ax.transAxes, fc="#F6F7F9", ec="#C6CBD1", lw=1))
+    line = fs * 1.3 / (fig.get_figheight() * 72 * rect[3])   # one text line, axes units
+    y = 0.975
+    for heading, bullets in sections:
+        ax.text(0.04, y, heading, transform=ax.transAxes, va="top", fontsize=fs + 0.8,
+                fontweight="bold", color="#1E2939")
+        y -= line * 1.45
+        for b in bullets:
+            lines = textwrap.wrap(b, width, initial_indent="\u2022 ", subsequent_indent="   ")
+            ax.text(0.05, y, "\n".join(lines), transform=ax.transAxes, va="top",
+                    fontsize=fs, color="#1E2939", linespacing=1.3)
+            y -= line * len(lines) + line * 0.35
+        y -= line * 0.5
+    return ax
+
 def build_figure(d, sigma_theta0, dark_until, interactive=True):
     import matplotlib.pyplot as plt
     from matplotlib.widgets import Button, Slider
@@ -190,13 +216,13 @@ def build_figure(d, sigma_theta0, dark_until, interactive=True):
     res = {}
     EKF_C, UKF_C, CLOUD_C = "#D9694A", "#1E9E74", "#8FA6BF"
 
-    fig = plt.figure(figsize=(13, 8.4))
+    fig = plt.figure(figsize=(17.5, 8.4))
     if interactive:
         fig.canvas.manager.set_window_title("UKF and EKF in a curved tunnel")
     gs = fig.add_gridspec(2, 2, width_ratios=[1.05, 1.25], hspace=0.42, wspace=0.16,
-                          left=0.04, right=0.98, top=0.87, bottom=0.15)
+                          left=0.03, right=0.725, top=0.87, bottom=0.15)
     ax_top = fig.add_subplot(gs[:, 0])
-    ax_top.set_title("Same tunnel: EKF, UKF and the exact belief", loc="left",
+    ax_top.set_title("EKF, UKF and the exact belief", loc="left",
                      fontsize=12, fontweight="bold")
     ek.draw_tunnel(ax_top)
     cloud_sc = ax_top.scatter([], [], s=3, color=CLOUD_C, alpha=0.5, zorder=2,
@@ -231,8 +257,45 @@ def build_figure(d, sigma_theta0, dark_until, interactive=True):
     nows = [a.axvline(0, color="#1E2939", lw=1) for a in (ax_big, ax_off)]
     for a in (ax_big, ax_off):
         a.set_xlim(t[0], t[-1])
-    stats = fig.text(0.5, 0.962, "", ha="center", va="top", fontsize=11.5,
+    stats = fig.text(0.38, 0.962, "", ha="center", va="top", fontsize=11.5,
                      fontweight="bold", linespacing=1.5)
+    ek.add_help_panel(fig, [
+        ("What you see", [
+            ("Left: the curved tunnel", [
+                "gray dots: the exact belief, 4,000 possible cars",
+                "dashed orange ellipse: the EKF",
+                "green ellipse: the UKF",
+                "green + marks: the UKF's sigma points",
+                "dark square: the true car",
+            ]),
+            ("Top right: the size of each belief", [
+                "the largest position sigma: exact, EKF and UKF",
+                "gray shading: the unlit stretch, no sign matched",
+            ]),
+            ("Bottom right: which approximation is right", [
+                "how far each filter's mean is from the exact one",
+            ]),
+        ]),
+        ("Try this", [
+            ("Raise the heading sigma", [
+                "the cloud bends into a banana",
+                "the EKF's mean drifts off it (6 m at 25 deg)",
+                "the UKF's mean stays on it",
+            ]),
+            ("Lengthen the unlit stretch", [
+                "the car drives further on the gyro alone",
+                "the banana grows, and the EKF drifts further",
+            ]),
+            ("Lower the heading sigma to 3 deg", [
+                "the two agree to a few centimeters: the EKF is enough",
+            ]),
+            ("Watch the first match after the dark", [
+                "both snap back, but neither follows the exact belief at once",
+                "a 14 m belief meeting a 1 m measurement: the particle "
+                "filter's job",
+            ]),
+        ]),
+    ])
 
     def rerun():
         r = compare(d, state["st"], state["dk"])

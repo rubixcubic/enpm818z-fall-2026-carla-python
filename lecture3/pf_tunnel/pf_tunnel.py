@@ -203,6 +203,39 @@ def lock_time(d, hist, tol=3.0):
 # ---------------------------------------------------------------------------
 # 3. The live window
 # ---------------------------------------------------------------------------
+
+def add_help_panel(fig, sections, rect=(0.745, 0.10, 0.245, 0.84), width=56, fs=8.2):
+    """A text panel beside the plots: what each panel shows, and what to try.
+
+    sections: [(heading, [(subheading, [bullet, ...]), ...]), ...]
+    Headings are bold, subheadings semibold, bullets indented under them.
+    """
+    import textwrap
+    from matplotlib.patches import FancyBboxPatch
+    ax = fig.add_axes(rect)
+    ax.set_axis_off()
+    ax.add_patch(FancyBboxPatch((0, 0), 1, 1, boxstyle="round,pad=0,rounding_size=0.015",
+                                transform=ax.transAxes, fc="#F6F7F9", ec="#C6CBD1", lw=1))
+    line = fs * 1.28 / (fig.get_figheight() * 72 * rect[3])   # one text line, axes units
+    y = 0.978
+    for heading, groups in sections:
+        ax.text(0.035, y, heading, transform=ax.transAxes, va="top", fontsize=fs + 1.2,
+                fontweight="bold", color="#1E2939")
+        y -= line * 1.5
+        for sub, bullets in groups:
+            ax.text(0.05, y, sub, transform=ax.transAxes, va="top", fontsize=fs + 0.2,
+                    fontweight="semibold", color="#2D6CA2")
+            y -= line * 1.2
+            for b in bullets:
+                lines = textwrap.wrap(b, width, initial_indent="\u2022 ",
+                                      subsequent_indent="   ", break_on_hyphens=False)
+                ax.text(0.075, y, "\n".join(lines), transform=ax.transAxes, va="top",
+                        fontsize=fs, color="#1E2939", linespacing=1.28)
+                y -= line * len(lines)
+            y -= line * 0.45
+        y -= line * 0.5
+    return ax
+
 def build_figure(d, mp, n_particles, sigma_cam, interactive=True):
     import matplotlib.pyplot as plt
     from matplotlib.widgets import Button, Slider
@@ -214,11 +247,11 @@ def build_figure(d, mp, n_particles, sigma_cam, interactive=True):
     SHOW = 1500                                    # particles drawn, at most
     rng_draw = np.random.default_rng(0)
 
-    fig = plt.figure(figsize=(13, 8.4))
+    fig = plt.figure(figsize=(17.5, 8.4))
     if interactive:
         fig.canvas.manager.set_window_title("Particle filter in a tunnel")
     gs = fig.add_gridspec(3, 2, height_ratios=[0.9, 1.3, 1.0], hspace=0.6, wspace=0.18,
-                          left=0.05, right=0.98, top=0.86, bottom=0.14)
+                          left=0.04, right=0.725, top=0.86, bottom=0.14)
 
     # --- top: the whole tunnel, unrolled, with the crowd
     ax_top = fig.add_subplot(gs[0, :])
@@ -238,7 +271,7 @@ def build_figure(d, mp, n_particles, sigma_cam, interactive=True):
     ax_top.set_xlabel("distance along the tunnel, s (m)")
     ax_top.legend(loc="lower left", bbox_to_anchor=(0.0, 0.98), ncol=6, frameon=False,
                   fontsize=9, handletextpad=0.3, columnspacing=1.0)
-    info = fig.text(0.98, 0.925, "", ha="right", fontsize=10, family="monospace")
+    info = fig.text(0.725, 0.925, "", ha="right", fontsize=10, family="monospace")
 
     # --- middle: the belief right now, as a histogram
     ax_h = fig.add_subplot(gs[1, :])
@@ -267,6 +300,46 @@ def build_figure(d, mp, n_particles, sigma_cam, interactive=True):
                 a.axvline(t[k], color="#1E9E74", lw=1.2, alpha=0.6)
     nows = [a.axvline(0, color="#1E2939", lw=1) for a in (ax_e, ax_c)]
     stats = fig.text(0.02, 0.955, "", ha="left", fontsize=12, fontweight="bold")
+    add_help_panel(fig, [
+        ("What you see", [
+            ("Top: the 700 m tunnel, unrolled", [
+                "gray ticks: the lights, all identical",
+                "green squares: the five SOS niches",
+                "blue dots: the particles",
+                "dark square: the true car",
+                "orange triangle: the weighted average (one bell curve)",
+                "blue triangle: the heaviest cluster",
+            ]),
+            ("Middle: the belief now", [
+                "how much weight sits at each place",
+                "several tall bars: several places still possible",
+            ]),
+            ("Bottom left: the error of each answer", [
+                "log scale",
+                "the average stays far off until the crowd is in one place",
+            ]),
+            ("Bottom right: how many places", [
+                "about 23 at the start, one per light",
+                "4 after the first niche, 1 by about 21 s",
+                "green lines: niche matches",
+            ]),
+        ]),
+        ("Try this", [
+            ("Fewer particles (100)", [
+                "press New draw a few times",
+                "sometimes it settles on the wrong place, with no warning",
+            ]),
+            ("More particles (2,000 or 5,000)", [
+                "right every time, but each step costs more",
+            ]),
+            ("Lower R (camera sigma 0.2 m)", [
+                "good particles are thrown away; it fails more often",
+            ]),
+            ("Raise R", [
+                "wider clusters, slower to settle, rarely wrong",
+            ]),
+        ]),
+    ])
 
     def rerun():
         res["h"] = run_pf(d, mp, state["N"], state["sc"], seed=state["seed"])
