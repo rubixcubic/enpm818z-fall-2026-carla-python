@@ -247,6 +247,7 @@ def build_figure(d, sigma_theta0, dark_until, interactive=True):
     l_ub, = ax_big.plot([], [], color=UKF_C, lw=2, label="UKF")
     ax_big.legend(loc="upper right", fontsize=9, frameon=False)
     ax_off = fig.add_subplot(gs[1, 1])
+    fig._panels = {"size": ax_big, "offset": ax_off}      # for --panels
     ax_off.set_title("how far each filter's mean is from the exact one (m)", loc="left",
                      fontsize=11)
     l_eo, = ax_off.plot([], [], color=EKF_C, lw=2, ls="--", label="EKF")
@@ -383,6 +384,8 @@ def main():
     ap.add_argument("--html", help="write the animation to this .html file instead")
     ap.add_argument("--snapshot", help="write one still frame to this .png file")
     ap.add_argument("--frame", type=float, default=5.0, help="time (s) for --snapshot")
+    ap.add_argument("--panels", help="with --snapshot: also save the two plots on the "
+                    "right as PREFIX_size.png and PREFIX_offset.png")
     a = ap.parse_args()
     if not os.path.exists(a.csv):
         sys.exit(f"{a.csv} not found. Run: python3 ekf_curve.py --make-csv")

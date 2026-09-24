@@ -395,6 +395,7 @@ def build_figure(d, sigma_w, sigma_range, interactive=True):
     ax_sig.set_xlim(t[0], t[-1]); ax_sig.set_ylabel("deg")
 
     ax_err = fig.add_subplot(gs[1, 1])
+    fig._panels = {"sigma": ax_sig, "error": ax_err}      # for --panels
     ax_err.set_title("true heading error, and the +/- sigma the filter reports",
                      loc="left", fontsize=11)
     band = ax_err.fill(np.r_[t, t[::-1]], np.zeros(2 * n), color="#2D6CA2", alpha=0.18,
@@ -543,6 +544,17 @@ def build_figure(d, sigma_w, sigma_range, interactive=True):
     return fig, step, n
 
 
+def save_panels(fig, prefix):
+    """--panels: save each plot in fig._panels on its own, cut out of the same frame."""
+    fig.canvas.draw()
+    r = fig.canvas.get_renderer()
+    for name, ax in fig._panels.items():
+        box = ax.get_tightbbox(r).transformed(fig.dpi_scale_trans.inverted())
+        out = f"{prefix}_{name}.png"
+        fig.savefig(out, dpi=220, bbox_inches=box.expanded(1.03, 1.06))
+        print("wrote", out)
+
+
 def animate_or_save(a, build, title, frame_stride=3):
     """Shared by ekf_curve.py and ukf_curve.py: --snapshot, --html, or the live window."""
     import matplotlib
@@ -556,6 +568,8 @@ def animate_or_save(a, build, title, frame_stride=3):
         for _ in range(int(round(a.frame / DT))):
             step(None)
         fig.savefig(a.snapshot, dpi=150)
+        if getattr(a, "panels", None):
+            save_panels(fig, a.panels)
         print("wrote", a.snapshot)
         return
     if a.html:
@@ -620,6 +634,8 @@ def main():
     ap.add_argument("--html", help="write the animation to this .html file instead")
     ap.add_argument("--snapshot", help="write one still frame to this .png file")
     ap.add_argument("--frame", type=float, default=9.0, help="time (s) for --snapshot")
+    ap.add_argument("--panels", help="with --snapshot: also save the two plots on the "
+                    "right as PREFIX_sigma.png and PREFIX_error.png")
     a = ap.parse_args()
 
     if a.check_jacobian:

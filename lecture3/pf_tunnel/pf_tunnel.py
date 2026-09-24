@@ -236,6 +236,28 @@ def add_help_panel(fig, sections, rect=(0.745, 0.10, 0.245, 0.84), width=56, fs=
         y -= line * 0.5
     return ax
 
+def save_panels(fig, prefix):
+    """--panels: save each plot in fig._panels on its own, cut out of the same frame."""
+    fig.canvas.draw()
+    r = fig.canvas.get_renderer()
+    for name, ax in fig._panels.items():
+        # the belief strip spans the whole window, so on its own its text is tiny:
+        # enlarge it for this export only, then put it back
+        texts = [ax.title, ax._left_title, ax.xaxis.label, ax.yaxis.label,
+                 *ax.get_xticklabels(), *ax.get_yticklabels()]
+        grow = 1.7 if name == "belief" else 1.0
+        old = [t.get_fontsize() for t in texts]
+        for t, f in zip(texts, old):
+            t.set_fontsize(f * grow)
+        fig.canvas.draw()
+        box = ax.get_tightbbox(r).transformed(fig.dpi_scale_trans.inverted())
+        out = f"{prefix}_{name}.png"
+        fig.savefig(out, dpi=220, bbox_inches=box.expanded(1.03, 1.06))
+        for t, f in zip(texts, old):
+            t.set_fontsize(f)
+        print("wrote", out)
+
+
 def build_figure(d, mp, n_particles, sigma_cam, interactive=True):
     import matplotlib.pyplot as plt
     from matplotlib.widgets import Button, Slider
@@ -291,6 +313,7 @@ def build_figure(d, mp, n_particles, sigma_cam, interactive=True):
     ax_e.set_yscale("symlog", linthresh=5); ax_e.set_xlim(t[0], t[-1])
     ax_e.legend(fontsize=9, frameon=False); ax_e.set_xlabel("time (s)")
     ax_c = fig.add_subplot(gs[2, 1])
+    fig._panels = {"belief": ax_h, "error": ax_e, "clusters": ax_c}   # for --panels
     ax_c.set_title("how many places the crowd is in (clusters)", loc="left", fontsize=11)
     l_cl, = ax_c.step([], [], color="#1E2939", lw=2, where="post")
     ax_c.set_yscale("log"); ax_c.set_xlim(t[0], t[-1]); ax_c.set_xlabel("time (s)")
@@ -482,6 +505,9 @@ def main():
     ap.add_argument("--html", help="write the animation to this .html file instead")
     ap.add_argument("--snapshot", help="write one still frame to this .png file")
     ap.add_argument("--frame", type=float, default=12.0, help="time (s) for --snapshot")
+    ap.add_argument("--panels", help="with --snapshot: also save the belief, error and "
+                    "cluster plots as PREFIX_belief.png, PREFIX_error.png, "
+                    "PREFIX_clusters.png")
     a = ap.parse_args()
 
     if a.make_csv:
@@ -510,6 +536,8 @@ def main():
         for _ in range(int(round(a.frame / DT))):
             step(None)
         fig.savefig(a.snapshot, dpi=150)
+        if a.panels:
+            save_panels(fig, a.panels)
         print("wrote", a.snapshot)
         return
     if a.html:
