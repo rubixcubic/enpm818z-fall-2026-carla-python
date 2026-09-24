@@ -334,6 +334,7 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
 
     # --- bottom left: sigma over time (the sawtooth)
     ax_sig = fig.add_subplot(gs[1, 0])
+    fig._ax_sig = ax_sig
     ax_sig.set_title("sigma of the position along the tunnel", loc="left", fontsize=12)
     for m in matches:
         ax_sig.axvline(t[m], color="#D9694A", lw=0.8, alpha=0.4)
@@ -343,6 +344,7 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
 
     # --- bottom right: true error against the band the filter reports
     ax_err = fig.add_subplot(gs[1, 1])
+    fig._panels = {"sigma": None, "error": ax_err}     # for --panels (sigma set below)
     ax_err.set_title("true error along the tunnel, and the +/- sigma the filter reports",
                      loc="left", fontsize=12)
     band = ax_err.fill(np.r_[t, t[::-1]], np.zeros(2 * n), color="#2D6CA2", alpha=0.18,
@@ -377,9 +379,15 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
                 "red shading: braking; green: speeding up",
             ]),
             ("Bottom right: the honesty check", [
-                "orange line: the true error",
-                "blue band: the +/- sigma the filter reports",
-                "honest: the line stays inside about 68% of the time",
+                "The orange line is the true error along the tunnel: the "
+                "estimate minus where the car really is. +2 m: the estimate is "
+                "2 m ahead of the car; -2 m: 2 m behind.",
+                "The blue band is the filter's own claim about that error: "
+                "plus or minus one sigma.",
+                "A bell curve holds 68% of its values within one sigma, so an "
+                "honest filter keeps the line inside the band about 68% of the time.",
+                "Much less than 68%: the band is too thin, overconfident. Much "
+                "more: the band is too wide, underconfident.",
             ]),
         ]),
         ("Try this", [
@@ -404,7 +412,7 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
                 "8 to 12 s: the estimate runs ahead of the car and out of the band",
             ]),
         ]),
-    ])
+    ], fs=7.5, width=62)
     rerun()
 
     def draw(k):
@@ -479,6 +487,42 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
     return fig, step, n
 
 
+
+def write_html(fig, draw, frames, path, title, fps):
+    """Render the animation to a self-contained web page, with progress.
+
+    Rendering takes about 15 to 30 seconds and prints nothing on its own, which
+    looks like a hang. So it counts the frames as it goes, and it writes the
+    file only once everything is rendered: stopping it early leaves no broken
+    half-page behind.
+    """
+    import os
+    import matplotlib
+    from matplotlib.animation import FuncAnimation
+    frames = list(frames)
+    done = [0]
+
+    def draw_with_progress(k):
+        done[0] += 1
+        print(f"\r  rendering frame {min(done[0], len(frames))} of {len(frames)}",
+              end="", flush=True)
+        return draw(k)
+
+    print(f"rendering {len(frames)} frames into {path} "
+          f"(about {max(10, len(frames) // 6)} s, a web page of ~20 MB) ...")
+    anim = FuncAnimation(fig, draw_with_progress, frames=frames, interval=200, blit=False)
+    matplotlib.rcParams["animation.embed_limit"] = 200
+    page = anim.to_jshtml(fps=fps, default_mode="loop")
+    print()
+    tmp = path + ".part"
+    with open(tmp, "w") as fh:
+        fh.write(f"<html><head><meta charset='utf-8'><title>{title}</title></head>"
+                 "<body style='font-family:sans-serif'>")
+        fh.write(page)
+        fh.write("</body></html>")
+    os.replace(tmp, path)
+    print("wrote", path, "- open it in a web browser")
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("csv", nargs="?", default=os.path.join(HERE, "tunnel_drive.csv"))
@@ -490,6 +534,8 @@ def main():
     ap.add_argument("--html", help="write the animation to this .html file instead")
     ap.add_argument("--snapshot", help="write one still frame to this .png file")
     ap.add_argument("--frame", type=float, default=11.0, help="time (s) for --snapshot")
+    ap.add_argument("--panels", help="with --snapshot: also save the two bottom plots "
+                    "as PREFIX_sigma.png and PREFIX_error.png")
     a = ap.parse_args()
 
     if a.make_csv:
@@ -521,19 +567,21 @@ def main():
         for _ in range(int(round(a.frame / DT))):
             step(None)
         fig.savefig(a.snapshot, dpi=150)
+        if a.panels:
+            # each bottom plot on its own, cut out of the same frame
+            fig.canvas.draw()
+            r = fig.canvas.get_renderer()
+            for name, ax in (("sigma", fig._ax_sig), ("error", fig._panels["error"])):
+                box = ax.get_tightbbox(r).transformed(fig.dpi_scale_trans.inverted())
+                out = f"{a.panels}_{name}.png"
+                fig.savefig(out, dpi=220, bbox_inches=box.expanded(1.03, 1.06))
+                print("wrote", out)
         print("wrote", a.snapshot)
         return
     if a.html:
         fig, draw, n = build_figure(d, a.sigma_a, a.sigma_sign, interactive=False, use_control=uc)
         fig.set_dpi(70)                                   # keeps the page small
-        anim = FuncAnimation(fig, draw, frames=range(0, n, 4), interval=200, blit=False)
-        matplotlib.rcParams["animation.embed_limit"] = 200
-        with open(a.html, "w") as f:
-            f.write("<html><head><meta charset='utf-8'><title>Kalman filter in a "
-                    "tunnel</title></head><body style='font-family:sans-serif'>")
-            f.write(anim.to_jshtml(fps=8, default_mode="loop"))
-            f.write("</body></html>")
-        print("wrote", a.html)
+        write_html(fig, draw, range(0, n, 4), a.html, "Kalman filter in a tunnel", fps=8)
         return
 
     fig, step, n = build_figure(d, a.sigma_a, a.sigma_sign, interactive=True, use_control=uc)

@@ -427,9 +427,15 @@ def build_figure(d, sigma_w, sigma_range, interactive=True):
                 "yellow shading: the car is in the bend",
             ]),
             ("Bottom right: the honesty check", [
-                "orange line: the true heading error",
-                "blue band: the +/- sigma the filter reports",
-                "honest: the line stays inside about 68% of the time",
+                "The orange line is the true heading error: the estimated "
+                "heading minus the real one. Positive: the estimate points too "
+                "far left.",
+                "The blue band is the filter's own claim about that error: "
+                "plus or minus one sigma.",
+                "A bell curve holds 68% of its values within one sigma, so an "
+                "honest filter keeps the line inside the band about 68% of the time.",
+                "Much less than 68%: the band is too thin, overconfident. Much "
+                "more: the band is too wide, underconfident.",
             ]),
         ]),
         ("Try this", [
@@ -555,15 +561,7 @@ def animate_or_save(a, build, title, frame_stride=3):
     if a.html:
         fig, draw, n = build(False)
         fig.set_dpi(70)
-        anim = FuncAnimation(fig, draw, frames=range(0, n, frame_stride), interval=200,
-                             blit=False)
-        matplotlib.rcParams["animation.embed_limit"] = 200
-        with open(a.html, "w") as fh:
-            fh.write(f"<html><head><meta charset='utf-8'><title>{title}</title></head>"
-                     "<body style='font-family:sans-serif'>")
-            fh.write(anim.to_jshtml(fps=10, default_mode="loop"))
-            fh.write("</body></html>")
-        print("wrote", a.html)
+        write_html(fig, draw, range(0, n, frame_stride), a.html, title, fps=10)
         return
     fig, step, n = build(True)
     anim = FuncAnimation(fig, step, interval=int(DT * 1000), blit=False,
@@ -571,6 +569,42 @@ def animate_or_save(a, build, title, frame_stride=3):
     fig._anim = anim
     plt.show()
 
+
+
+def write_html(fig, draw, frames, path, title, fps):
+    """Render the animation to a self-contained web page, with progress.
+
+    Rendering takes about 15 to 30 seconds and prints nothing on its own, which
+    looks like a hang. So it counts the frames as it goes, and it writes the
+    file only once everything is rendered: stopping it early leaves no broken
+    half-page behind.
+    """
+    import os
+    import matplotlib
+    from matplotlib.animation import FuncAnimation
+    frames = list(frames)
+    done = [0]
+
+    def draw_with_progress(k):
+        done[0] += 1
+        print(f"\r  rendering frame {min(done[0], len(frames))} of {len(frames)}",
+              end="", flush=True)
+        return draw(k)
+
+    print(f"rendering {len(frames)} frames into {path} "
+          f"(about {max(10, len(frames) // 6)} s, a web page of ~20 MB) ...")
+    anim = FuncAnimation(fig, draw_with_progress, frames=frames, interval=200, blit=False)
+    matplotlib.rcParams["animation.embed_limit"] = 200
+    page = anim.to_jshtml(fps=fps, default_mode="loop")
+    print()
+    tmp = path + ".part"
+    with open(tmp, "w") as fh:
+        fh.write(f"<html><head><meta charset='utf-8'><title>{title}</title></head>"
+                 "<body style='font-family:sans-serif'>")
+        fh.write(page)
+        fh.write("</body></html>")
+    os.replace(tmp, path)
+    print("wrote", path, "- open it in a web browser")
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])

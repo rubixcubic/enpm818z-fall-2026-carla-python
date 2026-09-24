@@ -435,6 +435,42 @@ def trials(d, mp, n_particles, sigma_cam, count):
           f"place in {got} of {count} runs{med}")
 
 
+
+def write_html(fig, draw, frames, path, title, fps):
+    """Render the animation to a self-contained web page, with progress.
+
+    Rendering takes about 15 to 30 seconds and prints nothing on its own, which
+    looks like a hang. So it counts the frames as it goes, and it writes the
+    file only once everything is rendered: stopping it early leaves no broken
+    half-page behind.
+    """
+    import os
+    import matplotlib
+    from matplotlib.animation import FuncAnimation
+    frames = list(frames)
+    done = [0]
+
+    def draw_with_progress(k):
+        done[0] += 1
+        print(f"\r  rendering frame {min(done[0], len(frames))} of {len(frames)}",
+              end="", flush=True)
+        return draw(k)
+
+    print(f"rendering {len(frames)} frames into {path} "
+          f"(about {max(10, len(frames) // 6)} s, a web page of ~20 MB) ...")
+    anim = FuncAnimation(fig, draw_with_progress, frames=frames, interval=200, blit=False)
+    matplotlib.rcParams["animation.embed_limit"] = 200
+    page = anim.to_jshtml(fps=fps, default_mode="loop")
+    print()
+    tmp = path + ".part"
+    with open(tmp, "w") as fh:
+        fh.write(f"<html><head><meta charset='utf-8'><title>{title}</title></head>"
+                 "<body style='font-family:sans-serif'>")
+        fh.write(page)
+        fh.write("</body></html>")
+    os.replace(tmp, path)
+    print("wrote", path, "- open it in a web browser")
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("csv", nargs="?", default=os.path.join(HERE, "pf_drive.csv"))
@@ -479,14 +515,7 @@ def main():
     if a.html:
         fig, draw, n = build_figure(d, mp, a.particles, a.camera_sigma, interactive=False)
         fig.set_dpi(70)
-        anim = FuncAnimation(fig, draw, frames=range(0, n, 4), interval=200, blit=False)
-        matplotlib.rcParams["animation.embed_limit"] = 200
-        with open(a.html, "w") as fh:
-            fh.write("<html><head><meta charset='utf-8'><title>Particle filter in a "
-                     "tunnel</title></head><body style='font-family:sans-serif'>")
-            fh.write(anim.to_jshtml(fps=8, default_mode="loop"))
-            fh.write("</body></html>")
-        print("wrote", a.html)
+        write_html(fig, draw, range(0, n, 4), a.html, "Particle filter in a tunnel", fps=8)
         return
     fig, step, n = build_figure(d, mp, a.particles, a.camera_sigma, interactive=True)
     anim = FuncAnimation(fig, step, interval=int(DT * 1000), blit=False,
