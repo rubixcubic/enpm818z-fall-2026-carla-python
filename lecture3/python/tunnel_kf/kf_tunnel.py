@@ -131,23 +131,65 @@ def run_kf(d, sigma_a=0.5, sigma_sign=1.0):
     x = np.array([d["true_x"][0] + 0.5, d["true_y"][0] - 0.3, 12.0, 0.0])
     P = np.diag([1.0**2, 1.0**2, 0.5**2, 0.5**2])
 
+    # History buffers, one entry per CSV row, so the window can replay the run:
+    #   xs[k]  (4,)    the estimate after everything known at time t[k]
+    #   Ps[k]  (4, 4)  its covariance
+    #   Ks[k]          the along-tunnel gain K[0, 0]; NaN on rows with no update
     n = len(d["t"])
     xs, Ps, Ks = np.zeros((n, 4)), np.zeros((n, 4, 4)), np.full(n, np.nan)
     for k in range(n):
         if k > 0:
-            # PREDICT: move with the rule plus what the IMU says; P grows
-            u = np.array([d["imu_ax"][k - 1], d["imu_ay"][k - 1]])
-            x = F @ x + B @ u
-            P = F @ P @ F.T + Q
+            # ---- PREDICT: carry the belief from t[k-1] to t[k] -----------------
+            # The IMU sample from row k-1 is the acceleration applied during the
+            # interval [t[k-1], t[k]), so it drives this step: a zero-order hold.
+            # Using row k instead would let the filter see the future by 0.1 s.
+            u = np.array([d["imu_ax"][k - 1], d["imu_ay"][k - 1]])   # (2,)
+
+            # Mean: constant-velocity motion (F) plus the known push (B u).
+            # F couples position to velocity: p += v*dt. B u adds 0.5*a*dt^2 to
+            # position and a*dt to velocity.
+            x = F @ x + B @ u                                          # (4,)
+
+            # Covariance: F P F^T moves the old uncertainty through the motion
+            # (it also creates the position-velocity correlation in the
+            # off-diagonal blocks), and + Q adds what the model cannot know:
+            # IMU noise and bias. With no update, trace(P) only grows.
+            P = F @ P @ F.T + Q                                        # (4, 4)
+
+        # Most rows have no sign match: sign_x is NaN there, so we skip the
+        # update and the prediction stands as the estimate.
         if not np.isnan(d["sign_x"][k]):
-            # UPDATE: a sign was matched; move toward it by the fraction K; P shrinks
-            z = np.array([d["sign_x"][k], d["sign_y"][k]])
-            nu = z - H @ x                        # the surprise
-            S = H @ P @ H.T + R                   # its expected size
-            K = P @ H.T @ np.linalg.inv(S)        # the fraction to act on
+            # ---- UPDATE: correct the prediction with the sign match ----------
+            z = np.array([d["sign_x"][k], d["sign_y"][k]])            # (2,)
+
+            # Innovation (the surprise): measured minus expected position.
+            # H picks the two position rows out of the state.
+            nu = z - H @ x                                             # (2,)
+
+            # Innovation covariance: how big nu should be if everything is
+            # honest. HPH^T is our own position uncertainty, R the sensor's.
+            # Comparing nu with S (nu^T S^-1 nu, the NIS) is the consistency
+            # test from the "Is the Covariance Honest?" section.
+            S = H @ P @ H.T + R                                        # (2, 2)
+
+            # Kalman gain: how much of the surprise to act on, per state
+            # variable. K is 4x2, so a position surprise also corrects velocity,
+            # through the position-velocity correlation that predict built in P.
+            # (np.linalg.solve(S.T, (P @ H.T).T).T avoids forming S^-1 and is
+            # the more robust choice for larger or badly scaled problems; for a
+            # well-conditioned 2x2 the explicit inverse is fine and easier to read.)
+            K = P @ H.T @ np.linalg.inv(S)                             # (4, 2)
+
+            # Mean: move toward the measurement by the fraction K of the surprise.
             x = x + K @ nu
+
+            # Covariance: the short form (I - KH) P. It is exact only for the
+            # optimal K and can lose symmetry through rounding over many steps.
+            # The Joseph form (I-KH) P (I-KH)^T + K R K^T stays symmetric and
+            # positive definite for any K; use it if you ever tune K by hand.
             P = (np.eye(4) - K @ H) @ P
-            Ks[k] = K[0, 0]                       # the along-tunnel gain
+
+            Ks[k] = K[0, 0]     # along-tunnel position gain, for the readout
         xs[k], Ps[k] = x, P
     return xs, Ps, Ks
 
