@@ -1,6 +1,6 @@
 # L3 hands-on: a Kalman filter in a tunnel
 
-One script, one CSV, and a live window. The car has lost GNSS in a tunnel. The
+One script, one CSV, and a live window. The AV has lost GNSS in a tunnel. The
 IMU gives its acceleration (the control input **u**); every 25 m the camera
 matches an emergency exit sign against the HD map, which gives a position (the
 measurement **z**). The filter is `run_kf()` in `kf_tunnel.py`: the predict and
@@ -50,13 +50,14 @@ python3 kf_tunnel.py tunnel_drive.csv --html tunnel_kf.html   # no desktop? a we
 Q comes from the acceleration the IMU gets wrong, pushed through B. Along the
 tunnel its sigma is the slider `sigma_a` (default 0.5 m/s^2), which must also
 cover the IMU's bias. Across the tunnel it is fixed at 0.3 m/s^2, the IMU's
-sideways noise, because a car in its lane has no sideways bias. So predict
+sideways noise, because an AV in its lane has no sideways bias. So predict
 stretches the ellipse most along the tunnel. The ellipse figures in the L3
-slides (Step 1, 2, 3) are drawn from this script's `run_kf(..., with_prior=True)`.
+slides (before predict, after predict, after update) are drawn from this script's
+`run_kf(..., with_prior=True)`.
 
 ## The window
 
-- **Top:** the tunnel from above, following the car: the true car, the estimate
+- **Top:** the tunnel from above, following the AV: the true AV, the estimate
   with its 1-sigma ellipse (P), the HD map's signs, and each sign match as it
   arrives. A **zoom** on the right, on a 1 m grid, shows the ellipse's shape: it
   grows along the tunnel between signs and snaps long and thin at each match.
@@ -67,9 +68,9 @@ slides (Step 1, 2, 3) are drawn from this script's `run_kf(..., with_prior=True)
 - **Controls:** play/pause, restart, sliders for Q (`sigma_a`) and R
   (`sigma_sign`, along the tunnel; the sideways 0.2 m is fixed), and a check box
   **use the IMU (B u)**. Moving a slider or the box reruns the filter.
-- **The drive:** the car brakes at 1 m/s^2 from 8 to 12 s and speeds up at
+- **The drive:** the AV brakes at 1 m/s^2 from 8 to 12 s and speeds up at
   0.8 m/s^2 from 20 to 24 s; both stretches are shaded on the time plots, and
-  the readout shows u, the IMU acceleration, at every step.
+  the readout shows u, the IMU acceleration applied in the last predict step.
 
 ## Exercises (numbers from the shipped CSV)
 
@@ -85,7 +86,7 @@ slides (Step 1, 2, 3) are drawn from this script's `run_kf(..., with_prior=True)
 
 1. Predict first, then move the slider: what happens to the sawtooth when Q is
    tiny? Why does the error grow while sigma stays small?
-2. Where in the drive does the error grow fastest, and what is the car doing
+2. Where in the drive does the error grow fastest, and what is the AV doing
    then? (Hint: the brake at 8 to 12 s.)
 3. Delete every second sign match from the CSV. What happens to the sawtooth?
 4. Open `run_kf()` and find each equation from the slides.

@@ -2,9 +2,9 @@
 # improved by Anthropic Claude Opus 5.5.
 # Signed: Zeid Kootbally
 
-"""A Kalman filter for a car in a tunnel, with a live window.
+"""A Kalman filter for an AV in a tunnel, with a live window.
 
-The car has lost GNSS in a tunnel. Its IMU measures acceleration (the control
+The AV has lost GNSS in a tunnel. Its IMU measures acceleration (the control
 input u), and every 25 m its camera recognizes an emergency exit sign and
 matches it against the HD map, which gives a position (the measurement z).
 The filter combines the two, exactly as in the L3 slides:
@@ -37,7 +37,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DT = 0.1                 # s between IMU readings, one predict step each
 SIGN_SPACING = 25.0      # m between emergency exit signs in the HD map
 SIGN_Y = 3.4             # signs hang on the north wall
-LANE_Y = -1.75           # the car drives in the south lane
+LANE_Y = -1.75           # the AV drives in the south lane
 SIGN_SIGMA_Y = 0.2       # m: a sign on the wall fixes the distance to the wall well
 SIGMA_A_Y = 0.3          # m/s^2: Q's sideways part, the IMU's sideways noise
 BRAKE = (8.0, 12.0, -1.0)    # s, s, m/s^2: brakes for a slower car
@@ -53,14 +53,14 @@ def make_csv(path, seed=702):
     n = int(45.0 / DT) + 1
     t = np.arange(n) * DT
 
-    # what the car really does: cruise, brake for a slower car, speed up again
+    # what the AV really does: cruise, brake for a slower car, speed up again
     ax = np.zeros(n)
     for t0, t1, a in (BRAKE, SPEED_UP):
         ax[(t >= t0) & (t < t1)] = a
     ax += 0.3 * np.sin(2 * np.pi * t / 15.0) * (t > 28)
     # a small sideways wander inside the lane. The sideways speed starts at
     # -A so that it swings evenly around zero; starting it at zero would make it
-    # never negative, and the car would drift steadily into the next lane.
+    # never negative, and the AV would drift steadily into the next lane.
     A_Y, T_Y = 0.05, 9.0                          # m/s^2, s
     ay = A_Y * np.sin(2 * np.pi * t / T_Y)
     vy0 = -A_Y * T_Y / (2 * np.pi)                # about -0.07 m/s: +/- 0.1 m wander
@@ -130,7 +130,7 @@ def run_kf(d, sigma_a=0.5, sigma_sign=1.0, use_control=True, with_prior=False):
                   [0, DT]])                       # acceleration -> state change
     # how wrong the rule usually is: the acceleration the IMU gets wrong,
     # pushed through B. Along the tunnel sigma_a (the slider) must also cover
-    # the IMU's bias; across it only the IMU's noise, 0.3 m/s^2, because a car
+    # the IMU's bias; across it only the IMU's noise, 0.3 m/s^2, because an AV
     # in its lane has no sideways bias to cover. So predict stretches the
     # ellipse most along the tunnel.
     Q = B @ np.diag([sigma_a**2, SIGMA_A_Y**2]) @ B.T
@@ -189,7 +189,7 @@ def run_kf(d, sigma_a=0.5, sigma_sign=1.0, use_control=True, with_prior=False):
             # Innovation covariance: how big nu should be if everything is
             # honest. HPH^T is our own position uncertainty, R the sensor's.
             # Comparing nu with S (nu^T S^-1 nu, the NIS) is the consistency
-            # test from the "Is the Covariance Honest?" section.
+            # test from the "Checking the Covariance" section.
             S = H @ P @ H.T + R                                        # (2, 2)
 
             # Kalman gain: how much of the surprise to act on, per state
@@ -294,7 +294,7 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
     gs = fig.add_gridspec(3, 2, height_ratios=[1.15, 1, 0.22], hspace=0.55,
                           left=0.05, right=0.725, top=0.93, bottom=0.05)
 
-    # --- top: the tunnel from above, following the car
+    # --- top: the tunnel from above, following the AV
     ax_top = fig.add_subplot(gs[0, :])
     ax_top.set_title("GNSS lost: the tunnel", loc="left", fontsize=13,
                      fontweight="bold")
@@ -304,7 +304,7 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
     signs = np.arange(1, 40) * SIGN_SPACING
     ax_top.scatter(signs, np.full_like(signs, SIGN_Y), marker="s", s=80, color="#1E9E74",
                    zorder=3, label="exit sign (HD map)")
-    true_dot, = ax_top.plot([], [], "s", color="#1E2939", ms=11, label="true car")
+    true_dot, = ax_top.plot([], [], "s", color="#1E2939", ms=11, label="true AV")
     est_dot, = ax_top.plot([], [], "o", color="#2D6CA2", ms=8, label="estimate")
     ell, = ax_top.plot([], [], color="#2D6CA2", lw=2, label="1-sigma ellipse (P)")
     match_dot, = ax_top.plot([], [], "X", color="#D9694A", ms=13, label="sign match (z)")
@@ -312,7 +312,7 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
     ax_top.set_xlabel("along the tunnel (m)"); ax_top.set_yticks([])
     ax_top.legend(loc="lower right", bbox_to_anchor=(1.0, 1.0), ncol=5, frameon=False,
                   fontsize=10, handletextpad=0.4, columnspacing=1.2)
-    # a zoom on the car, so the ellipse's shape is visible: it grows along the
+    # a zoom on the AV, so the ellipse's shape is visible: it grows along the
     # tunnel between signs and snaps long and thin at each sign match
     ax_zoom = ax_top.inset_axes([0.795, 0.04, 0.2, 0.92])
     ax_zoom.set_facecolor("#E9ECEF")
@@ -353,7 +353,7 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
     ax_err.axhline(0, color="#7A828C", lw=1)
     now_err = ax_err.axvline(0, color="#1E2939", lw=1)
     ax_err.set_xlim(t[0], t[-1]); ax_err.set_xlabel("time (s)"); ax_err.set_ylabel("m")
-    # when the car brakes and speeds up: the IMU sees it, and B u predicts it
+    # when the AV brakes and speeds up: the IMU sees it, and B u predicts it
     for a_ in (ax_sig, ax_err):
         a_.axvspan(BRAKE[0], BRAKE[1], color="#FBE3DC", zorder=0)
         a_.axvspan(SPEED_UP[0], SPEED_UP[1], color="#E3F1EC", zorder=0)
@@ -365,7 +365,7 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
     add_help_panel(fig, [
         ("What you see", [
             ("Top: the tunnel", [
-                "dark square: the true car",
+                "dark square: the true AV",
                 "blue dot: the estimate",
                 "blue ellipse: its 1-sigma uncertainty, P",
                 "green squares: exit signs in the HD map",
@@ -380,8 +380,8 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
             ]),
             ("Bottom right: the honesty check", [
                 "The orange line is the true error along the tunnel: the "
-                "estimate minus where the car really is. +2 m: the estimate is "
-                "2 m ahead of the car; -2 m: 2 m behind.",
+                "estimate minus where the AV really is. +2 m: the estimate is "
+                "2 m ahead of the AV; -2 m: 2 m behind.",
                 "The blue band is the filter's own claim about that error: "
                 "plus or minus one sigma.",
                 "A bell curve holds 68% of its values within one sigma, so an "
@@ -409,7 +409,7 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
             ]),
             ("Untick 'use the IMU'", [
                 "the brake is no longer predicted",
-                "8 to 12 s: the estimate runs ahead of the car and out of the band",
+                "8 to 12 s: the estimate runs ahead of the AV and out of the band",
             ]),
         ]),
     ], fs=7.5, width=62)
@@ -441,12 +441,14 @@ def build_figure(d, sigma_a, sigma_sign, interactive=True, use_control=True):
         true_z.set_data([cx], [d["true_y"][k]])
         ell_z.set_data(e[:, 0], e[:, 1]); est_z.set_data([ex], [ey])
         match_z.set_data(*match_dot.get_data())
+        # u in the readout is the IMU sample that drove the step into row k
+        # (row k-1, the zero-order hold in run_kf), not row k's own sample
         last_k = [m for m in matches if m <= k]
         kline = f"K {res['Ks'][last_k[-1]]:.2f}" if last_k else "K  -  "
         doing = ("BRAKING" if BRAKE[0] <= t[k] < BRAKE[1] else
                  "speeding up" if SPEED_UP[0] <= t[k] < SPEED_UP[1] else "cruising")
         info.set_text(f"t {t[k]:5.1f} s   sigma {res['sig'][k]:.2f} m   {kline}   "
-                      f"speed {xs[k, 2]:.1f} m/s   u = IMU a_x {d['imu_ax'][k]:+.2f} m/s^2"
+                      f"speed {xs[k, 2]:.1f} m/s   u = IMU a_x {d['imu_ax'][max(k - 1, 0)]:+.2f} m/s^2"
                       f"   {doing}")
         now_sig.set_xdata([t[k], t[k]]); now_err.set_xdata([t[k], t[k]])
         return (true_dot, est_dot, ell, match_dot, info, now_sig, now_err,
