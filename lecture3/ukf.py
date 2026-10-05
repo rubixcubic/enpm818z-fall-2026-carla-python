@@ -2,7 +2,7 @@
 # improved by Anthropic Claude Opus 5.5.
 # Signed: Zeid Kootbally
 
-"""Script 3. The Unscented Kalman Filter: same car, no Jacobian.
+"""Script 3. The Unscented Kalman Filter: same AV, no Jacobian.
 
 Same state [x, y, theta], same f, same data as ekf.py. Instead of a tangent,
 it places 2n + 1 = 7 sigma points on the belief, pushes each through the real
@@ -51,12 +51,13 @@ def main():
     for k in range(len(d["t"])):
         if k > 0:
             u = np.array([d["v_meas"][k-1], d["omega_meas"][k-1]])
+            Qk = process_noise(s, u)                      # same Q as ekf.py, at the same guess
             pts, W = sigma_points(s, P)
             Y = np.array([f(p, u) for p in pts])          # step 2, PUSH
             s = mean_of(Y, W)                             # step 3, REBUILD
             D = Y - s
             D[:, 2] = wrap(D[:, 2])
-            P = (W[:, None] * D).T @ D + process_noise(s, u)
+            P = (W[:, None] * D).T @ D + Qk
         if not np.isnan(d["gnss_x"][k]):
             # the update runs the same recipe through h(x) = [x, y]
             pts, W = sigma_points(s, P)

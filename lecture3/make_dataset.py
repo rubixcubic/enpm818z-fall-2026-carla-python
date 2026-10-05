@@ -2,7 +2,7 @@
 # improved by Anthropic Claude Opus 5.5.
 # Signed: Zeid Kootbally
 
-"""Make the L3 practice dataset: a car driving a curvy road for 60 seconds.
+"""Make the L3 practice dataset: the AV driving a curvy road for 60 seconds.
 
 Writes two CSV files next to this script:
 
@@ -12,12 +12,12 @@ Writes two CSV files next to this script:
 Every row is one 0.1 s step. Columns:
 
     t                 time (s)
-    x, y, theta       where the car REALLY is (m, m, rad). Ground truth.
-    v, omega          what the car REALLY did: speed (m/s), turn rate (rad/s)
+    x, y, theta       where the AV REALLY is (m, m, rad). Ground truth.
+    v, omega          what the AV REALLY did: speed (m/s), turn rate (rad/s)
     v_meas, omega_meas  what the wheels and the IMU SAY it did (noisy)
     gnss_x, gnss_y    the GNSS fix (m). Empty on steps with no fix (1 Hz).
 
-A real car never knows x, y, theta. Your filter must not read them; they
+A real AV never knows x, y, theta. Your filter must not read them; they
 are only there so you can score it afterwards.
 """
 import csv

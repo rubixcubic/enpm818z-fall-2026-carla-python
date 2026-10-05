@@ -20,7 +20,7 @@ from l3common import load, report, plot, DT, SIGMA_GNSS
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sigma-a", type=float, default=5.0,
-                    help="how hard the car might accelerate (m/s^2). Sets Q.")
+                    help="how hard the AV might accelerate (m/s^2). Sets Q.")
     ap.add_argument("--data", default="l3_drive.csv")
     args = ap.parse_args()
     d = load(args.data)
@@ -30,7 +30,7 @@ def main():
                   [0, 1, 0, DT],
                   [0, 0, 1, 0],
                   [0, 0, 0, 1]], float)
-    # Q: how wrong "constant velocity" is over one step, if the car can
+    # Q: how wrong "constant velocity" is over one step, if the AV can
     # accelerate by about sigma_a. The standard textbook form.
     q = args.sigma_a ** 2
     Q1 = q * np.array([[DT**4 / 4, DT**3 / 2], [DT**3 / 2, DT**2]])

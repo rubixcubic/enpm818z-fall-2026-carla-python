@@ -9,7 +9,7 @@ down. Two scripts, one CSV:
 - `ekf_curve.py`: the extended Kalman filter. The mean goes through the real f
   and h; the covariance goes through their tangents, the Jacobians F_k and H_k.
 - `ukf_curve.py`: the unscented Kalman filter next to the EKF, both compared
-  with the exact belief, computed by brute force with 4,000 possible cars.
+  with the exact belief, computed by brute force with 4,000 possible AV positions.
 
 ## Requirements
 
@@ -84,18 +84,26 @@ filter with the exact belief just before the first sign match:
 | 12 deg, 9 s | 1.90 m | 0.03 m |
 | 25 deg, 5 s | 6.03 m | 0.01 m |
 
+The exact belief is itself a sample of 4,000 AVs, so its mean wanders by a few
+tenths of a meter: read the UKF column as "within the referee's own noise".
+Against 200,000 AVs the four rows read EKF 0.10, 1.44, 1.88 and 5.98 m, UKF
+0.00, 0.03, 0.04 and 0.10 m.
+
 In the dark the UKF stays on the exact belief and the EKF drifts off it: the
-banana from the slides. Then watch the first match. A belief 14 m wide meets a
-1 m measurement, and neither filter follows the exact answer at once. The EKF
-snaps in and is overconfident; the UKF, whose sigma points straddle the sign,
-treats the bend as noise and corrects cautiously. That is where a bell curve,
-any bell curve, runs out, and it is what `../pf_tunnel` is for.
+banana from the slides. Then watch the first match (t = 6.8 s at the default).
+A belief 14 m wide meets a 1 m measurement. The EKF, linearized at its own
+estimate, lands about 0.2 m from the exact belief. The UKF, whose sigma points
+sit up to 23 m from its mean, treats the bend as noise and corrects
+cautiously: about 1.1 m off, with a largest sigma of 1.1 m against the exact
+0.9 m, closing to about 0.1 m by 21 s. With a belief this wide, which bell
+curve lands closer depends on where it draws its line through h; a filter that
+keeps the whole cloud, `../pf_tunnel`, does not have to choose.
 
 ## Exercises
 
 1. Run `--check-jacobian`, then change a sign in `jacobian_h` and run it again.
 2. Tick "wrong sign in the Jacobian". The filter still runs. How would you know
-   it is wrong on a real car, with no truth column?
+   it is wrong on a real AV, with no truth column?
 3. In `ukf_curve.py`, set the heading sigma to 3 deg. Why do the EKF and UKF
    agree now?
-4. Find the two places `ekf_curve.py` wraps an angle. Remove one and rerun.
+4. Find the three places `ekf_curve.py` wraps an angle. Remove one and rerun.

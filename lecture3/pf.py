@@ -4,7 +4,7 @@
 
 """Script 4. The particle filter: a crowd of guesses.
 
-Same car, same data. The belief is N particles, each a full guess
+Same AV, same data. The belief is N particles, each a full guess
 [x, y, theta] with a weight. Every step: PREDICT (move each particle with its
 own random kick), WEIGH (score it against the GNSS fix), RESAMPLE (copy the
 heavy ones, drop the light ones).
@@ -24,7 +24,8 @@ def main():
     ap.add_argument("--data", default="l3_drive.csv")
     ap.add_argument("--particles", type=int, default=1000)
     ap.add_argument("--jitter", type=float, default=0.3,
-                    help="random nudge after resampling (m); 0 turns it off")
+                    help="random nudge after resampling: sigma in m for x and y, "
+                         "a tenth of it in rad for the heading; 0 turns it off")
     ap.add_argument("--global", dest="global_start", action="store_true",
                     help="spread the first particles over the whole map")
     args = ap.parse_args()
@@ -54,10 +55,16 @@ def main():
             p[:, 1] += v * DT * np.sin(p[:, 2])
             p[:, 2] = wrap(p[:, 2] + om * DT)
         if not np.isnan(d["gnss_x"][k]):
-            # WEIGH: the GNSS bell curve, evaluated at each particle
+            # WEIGH: the GNSS bell curve, evaluated at each particle.
+            # In logs: a particle 80 m from the fix scores exp(-800), which is 0
+            # in floating point. If every particle is that far (--global with
+            # few particles), w * exp(...) would be all zeros. Subtracting the
+            # largest log weight first keeps the closest particle at weight 1.
             gap2 = (p[:, 0] - d["gnss_x"][k]) ** 2 + (p[:, 1] - d["gnss_y"][k]) ** 2
-            w = w * np.exp(-0.5 * gap2 / SIGMA_GNSS ** 2)
-            w = w / w.sum() if w.sum() > 0 else np.full(n, 1.0 / n)
+            with np.errstate(divide="ignore"):
+                logw = np.log(w) - 0.5 * gap2 / SIGMA_GNSS ** 2
+            w = np.exp(logw - logw.max())
+            w = w / w.sum()
             n_eff.append(1.0 / np.sum(w ** 2))
             # RESAMPLE: systematic, only when the weights have become uneven
             if n_eff[-1] < n / 2:

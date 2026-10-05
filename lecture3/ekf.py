@@ -2,10 +2,10 @@
 # improved by Anthropic Claude Opus 5.5.
 # Signed: Zeid Kootbally
 
-"""Script 2. The Extended Kalman Filter: the car turns.
+"""Script 2. The Extended Kalman Filter: the AV turns.
 
 The state is [x, y, theta]. The wheels give speed v and the IMU gives turn
-rate omega: that is the control input u = [v, omega]. Moving the car needs a
+rate omega: that is the control input u = [v, omega]. Moving the AV needs a
 cosine and a sine, so the model is a FUNCTION f, not a matrix, and the EKF
 uses its tangent (the Jacobian) wherever a covariance is involved.
 
@@ -45,7 +45,9 @@ def check_jacobian():
     numeric = np.zeros((3, 3))
     for j in range(3):
         ds = np.zeros(3); ds[j] = eps
-        numeric[:, j] = (f(s + ds, u) - f(s - ds, u)) / (2 * eps)
+        diff = f(s + ds, u) - f(s - ds, u)
+        diff[2] = wrap(diff[2])                 # a heading difference is an angle
+        numeric[:, j] = diff / (2 * eps)
     worst = np.abs(numeric - jacobian_f(s, u)).max()
     verdict = "OK" if worst < 1e-6 else "WRONG, fix jacobian_f"
     print(f"Jacobian check: largest difference {worst:.2e}  ->  {verdict}")
@@ -58,7 +60,9 @@ def process_noise(s, u):
                   [DT * np.sin(th), 0],
                   [0, DT]])
     M = np.diag([SIGMA_V ** 2, SIGMA_OMEGA ** 2])
-    return G @ M @ G.T + np.diag([0.01, 0.01, 1e-5])   # small floor: f is not perfect
+    # plus a small extra Q we chose as a safety margin (the dataset was made with
+    # this same f, so here it covers nothing but rounding in the CSV)
+    return G @ M @ G.T + np.diag([0.01, 0.01, 1e-5])
 
 
 def main():
@@ -88,9 +92,10 @@ def main():
         if k > 0:
             u = np.array([d["v_meas"][k-1], d["omega_meas"][k-1]])
             Fk = jacobian_f(s, u)               # tangent at the current guess
+            Qk = process_noise(s, u)            # G = df/du at the same guess
             s = f(s, u)                         # the guess goes through the REAL f
             s[2] = wrap(s[2])
-            P = Fk @ P @ Fk.T + process_noise(s, u)
+            P = Fk @ P @ Fk.T + Qk
         if not np.isnan(d["gnss_x"][k]):
             z = np.array([d["gnss_x"][k], d["gnss_y"][k]])
             nu = z - H @ s

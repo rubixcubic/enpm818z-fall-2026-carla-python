@@ -7,7 +7,7 @@ CARLA. Needs only `numpy` and `matplotlib`.
 python3 make_dataset.py        # writes l3_drive.csv and l3_drive_multipath.csv
 python3 kf_cv.py               # 1. plain Kalman filter, GNSS only
 python3 ekf.py                 # 2. EKF: wheels + IMU predict, GNSS updates
-python3 ukf.py                 # 3. UKF: same car, no Jacobian
+python3 ukf.py                 # 3. UKF: same AV, no Jacobian
 python3 pf.py                  # 4. particle filter: a crowd of guesses
 ```
 
@@ -20,14 +20,14 @@ Each script prints two things and saves a PNG:
 
 ## The dataset
 
-`make_dataset.py` drives a car for 60 s on a curvy road: straight, a left
+`make_dataset.py` drives the AV for 60 s on a curvy road: straight, a left
 bend, straight, a right bend, a gentle S. One row every 0.1 s.
 
 | column | meaning |
 |---|---|
 | `t` | time (s) |
-| `x, y, theta` | where the car **really** is. Ground truth: never read it inside a filter |
-| `v, omega` | what the car **really** did |
+| `x, y, theta` | where the AV **really** is. Ground truth: never read it inside a filter |
+| `v, omega` | what the AV **really** did |
 | `v_meas, omega_meas` | what the wheels and IMU **say** it did (σ 0.3 m/s, 0.02 rad/s) |
 | `gnss_x, gnss_y` | GNSS fix, 1 Hz, σ 2 m. Empty on the other nine rows |
 

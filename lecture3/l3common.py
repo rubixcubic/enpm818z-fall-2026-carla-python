@@ -26,7 +26,7 @@ def load(name="l3_drive.csv"):
 
 
 def wrap(a):
-    """Put an angle, or an angle difference, into (-pi, pi]."""
+    """Put an angle, or an angle difference, into [-pi, pi)."""
     return (a + np.pi) % (2 * np.pi) - np.pi
 
 
@@ -54,7 +54,7 @@ def plot(name, d, est, nis=(), nis_t=(), out=None):
     ax.plot(d["gnss_x"], d["gnss_y"], ".", color="tab:orange", label="GNSS fixes")
     ax.plot(est[:, 0], est[:, 1], "-", color="tab:blue", lw=1.6, label=name)
     ax.set_aspect("equal"); ax.set_xlabel("x (m)"); ax.set_ylabel("y (m)")
-    ax.legend(); ax.set_title("Where the filter thinks the car is")
+    ax.legend(); ax.set_title("Where the filter thinks the AV is")
     if len(nis):
         ax = axes[0, 1]
         ax.axhspan(NIS_LO, NIS_HI, color="tab:green", alpha=0.15, label="honest band")

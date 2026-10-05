@@ -2,13 +2,14 @@
 # improved by Anthropic Claude Opus 5.5.
 # Signed: Zeid Kootbally
 
-"""A particle filter for a car that does not know where it is in a tunnel.
+"""A particle filter for an AV that does not know where it is in a tunnel.
 
-The car's computer restarted inside a 700 m tunnel. It knows its speed (the
+The AV's computer restarted inside a 700 m tunnel. It knows its speed (the
 wheels) but has no idea how far along the tunnel it is. The camera recognizes
 two kinds of landmarks and matches them against the HD map:
 
-    lights        one every 25 m, all identical
+    lights        one every 25 m, all identical (23 of them: none within
+                  5 m of a niche, so the comb has four gaps)
     SOS niches    emergency phone niches, only five, spaced irregularly
 
 A light match says "you are 30 m before SOME light": that fits 23 places at
@@ -47,7 +48,7 @@ NICHES = np.array([95.0, 245.0, 320.0, 470.0, 610.0])   # m, irregular on purpos
 MATCH_AT = 30.0            # m: a landmark is matched when it is this far ahead
 SIGMA_WHEEL = 0.3          # m/s, wheel speed noise in the data
 SIGMA_CAM = 1.0            # m, camera distance to a matched landmark
-START = 40.0               # m, where the car really is when the computer restarts
+START = 40.0               # m, where the AV really is when the computer restarts
 DURATION = 45.0            # s
 
 
@@ -64,7 +65,7 @@ def make_csv(path, map_path, seed=818):
     rng = np.random.default_rng(seed)
     n = int(round(DURATION / DT)) + 1
     t = np.arange(n) * DT
-    speed = 12.0 + 1.5 * np.sin(2 * np.pi * t / 20.0)        # the car really drives
+    speed = 12.0 + 1.5 * np.sin(2 * np.pi * t / 20.0)        # the AV really drives
     s = START + np.concatenate([[0.0], np.cumsum(speed[:-1] * DT)])
     wheel = speed + rng.normal(0, SIGMA_WHEEL, n)
     mp = hd_map()
@@ -129,8 +130,12 @@ def likelihood(parts, kind, dist, mp, sigma_cam):
     return score + 1e-3
 
 
-def clusters(parts, w, width=6.0):
+def clusters(parts, w):
     """Group the crowd into clusters: runs of 2 m bins holding weight.
+
+    A bin holds weight when it carries more than 0.001 of it. One empty bin
+    inside a run does not split it; two do. Particles outside -20 m to 722 m
+    are not counted.
 
     Returns a list of (weight, weighted mean) sorted heaviest first.
     """
@@ -173,7 +178,9 @@ def run_pf(d, mp, n_particles=2000, sigma_cam=SIGMA_CAM, sigma_wheel=SIGMA_WHEEL
             w = w * likelihood(parts, d["match"][k], d["match_dist"][k], mp, sigma_cam)
             w = w / w.sum()
             # RESAMPLE when the effective number of particles gets too small.
-            if 1.0 / np.sum(w**2) < N / 2:
+            # Record N_eff here, before resampling resets it to N.
+            hist["n_eff"][k] = 1.0 / np.sum(w**2)
+            if hist["n_eff"][k] < N / 2:
                 pos = (rng.random() + np.arange(N)) / N          # systematic resampling
                 idx = np.minimum(np.searchsorted(np.cumsum(w), pos), N - 1)
                 parts, w = parts[idx], np.full(N, 1.0 / N)
@@ -181,7 +188,8 @@ def run_pf(d, mp, n_particles=2000, sigma_cam=SIGMA_CAM, sigma_wheel=SIGMA_WHEEL
         hist["mean"][k] = np.sum(w * parts)        # the one-bell-curve answer
         hist["best"][k] = cl[0][1] if cl else hist["mean"][k]
         hist["n_clusters"][k] = sum(1 for c in cl if c[0] > 0.02)
-        hist["n_eff"][k] = 1.0 / np.sum(w**2)
+        if not d["match"][k]:
+            hist["n_eff"][k] = 1.0 / np.sum(w**2)
         if k % keep_every == 0:
             hist["parts"].append(parts.copy()); hist["w"].append(w.copy())
     return hist
@@ -285,7 +293,7 @@ def build_figure(d, mp, n_particles, sigma_cam, interactive=True):
     ax_top.scatter(mp["niche"], np.full(len(mp["niche"]), 1.25), marker="s", s=70,
                    color="#1E9E74", label="SOS niche")
     crowd = ax_top.scatter([], [], s=4, color="#2D6CA2", alpha=0.35, label="particles")
-    true_dot, = ax_top.plot([], [], "s", color="#1E2939", ms=10, label="true car")
+    true_dot, = ax_top.plot([], [], "s", color="#1E2939", ms=10, label="true AV")
     mean_dot, = ax_top.plot([], [], "v", color="#D9694A", ms=11,
                             label="weighted average (one bell curve)")
     best_dot, = ax_top.plot([], [], "^", color="#2D6CA2", ms=11, label="heaviest cluster")
@@ -329,7 +337,7 @@ def build_figure(d, mp, n_particles, sigma_cam, interactive=True):
                 "gray ticks: the lights, all identical",
                 "green squares: the five SOS niches",
                 "blue dots: the particles",
-                "dark square: the true car",
+                "dark square: the true AV",
                 "orange triangle: the weighted average (one bell curve)",
                 "blue triangle: the heaviest cluster",
             ]),

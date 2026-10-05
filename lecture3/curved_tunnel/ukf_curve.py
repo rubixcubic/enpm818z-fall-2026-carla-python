@@ -4,7 +4,7 @@
 
 """An unscented Kalman filter next to the EKF, in the same curved tunnel.
 
-Same car, same data, same f and h as ekf_curve.py. The difference is how each
+Same AV, same data, same f and h as ekf_curve.py. The difference is how each
 filter pushes its uncertainty through those curves:
 
     EKF: one tangent (the Jacobian) at the estimate, for the whole ellipse.
@@ -12,15 +12,22 @@ filter pushes its uncertainty through those curves:
          new mean and covariance rebuilt from where they land. No Jacobians.
 
 To see who is right we also compute the exact belief by brute force: thousands
-of possible cars, each driven with its own draw of the wheel and gyro noise and
+of possible AVs, each driven with its own draw of the wheel and gyro noise and
 weighted by how well it explains each sign match (the particle filter of the
 next section, used here as a referee). A filter is right when its mean and
-ellipse match that cloud.
+ellipse match that cloud. The referee never feeds the filters.
+
+The cloud is itself a sample: with 4,000 AVs its mean wanders by about
+sigma / sqrt(4000), a few tenths of a meter when the belief is 14 m wide. So an
+offset below about 0.3 m only says "within the referee's own noise" (run_cloud
+with another seed shows it). Measured against 200,000 AVs instead, just before
+the first match at heading sigma 12 deg and 5 s unlit: EKF 1.44 m, UKF 0.03 to
+0.04 m off.
 
 Two sliders set how hard the job is:
     heading sigma at the entrance   how well the heading is known going in
     unlit stretch                   the camera matches no sign for this long, so
-                                    the car drives the bend on wheels and gyro only
+                                    the AV drives the bend on wheels and gyro only
 
 Usage
     python3 ukf_curve.py                          # live window (uses curve_drive.csv)
@@ -42,7 +49,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 N_STATE = 3
 KAPPA = 0.0      # the usual choice n + kappa = 3. With n = 3 that makes kappa 0,
                  # so the center point gets weight 0 and the six others 1/6 each.
-N_CLOUD = 4000   # possible cars in the brute-force reference
+N_CLOUD = 4000   # possible AVs in the brute-force reference
 
 
 # ---------------------------------------------------------------------------
@@ -88,11 +95,14 @@ def run_ukf(d, sigma_w=ek.SIGMA_W_FILTER, sigma_range=ek.SIGMA_RANGE,
     xs, Ps, Xs = np.zeros((n, 3)), np.zeros((n, 3, 3)), np.zeros((n, 7, 3))
     for k in range(n):
         if k > 0:
+            # the control from row k-1 acts during [t[k-1], t[k]), as in the EKF
             u = (d["wheel_v"][k - 1], d["gyro_w"][k - 1])
+            # Q_k is the EKF's, taken at the same point: the estimate before moving
+            Q = ek.process_noise(x, u, ek.SIGMA_V, sigma_w)
             X, W = sigma_points(x, P)                 # 1. place
             Y = f(X, u)                               # 2. push, through the real f
             x, P, _ = mean_and_cov(Y, W, 2)           # 3. rebuild
-            P = P + ek.process_noise(x, u, ek.SIGMA_V, sigma_w)   # plus Q, as always
+            P = P + Q                                 # plus Q, as always
         if matches[k]:
             # the same recipe, through h: expected reading and its spread S
             sign = signs[int(d["sign_id"][k])]
@@ -119,7 +129,7 @@ def run_ukf(d, sigma_w=ek.SIGMA_W_FILTER, sigma_range=ek.SIGMA_RANGE,
 # ---------------------------------------------------------------------------
 def run_cloud(d, sigma_w=ek.SIGMA_W_FILTER, sigma_range=ek.SIGMA_RANGE,
               sigma_theta0=np.radians(5.0), dark_until=0.0, seed=7):
-    """N_CLOUD possible cars under the same assumptions as the filters.
+    """N_CLOUD possible AVs under the same assumptions as the filters.
 
     Returns, at every step, the cloud's weighted mean and covariance, plus the
     particles themselves (for drawing). This is a particle filter; see
@@ -226,8 +236,8 @@ def build_figure(d, sigma_theta0, dark_until, interactive=True):
                      fontsize=12, fontweight="bold")
     ek.draw_tunnel(ax_top)
     cloud_sc = ax_top.scatter([], [], s=3, color=CLOUD_C, alpha=0.5, zorder=2,
-                              label="exact belief (possible cars)")
-    true_dot, = ax_top.plot([], [], "s", color="#1E2939", ms=9, label="true car", zorder=5)
+                              label="exact belief (possible AVs)")
+    true_dot, = ax_top.plot([], [], "s", color="#1E2939", ms=9, label="true AV", zorder=5)
     e_ell, = ax_top.plot([], [], color=EKF_C, lw=2, ls="--", label="EKF", zorder=4)
     e_dot, = ax_top.plot([], [], "o", color=EKF_C, ms=6, zorder=4)
     u_ell, = ax_top.plot([], [], color=UKF_C, lw=2, label="UKF", zorder=4)
@@ -263,11 +273,11 @@ def build_figure(d, sigma_theta0, dark_until, interactive=True):
     ek.add_help_panel(fig, [
         ("What you see", [
             ("Left: the curved tunnel", [
-                "gray dots: the exact belief, 4,000 possible cars",
+                "gray dots: the exact belief, 4,000 possible AVs",
                 "dashed orange ellipse: the EKF",
                 "green ellipse: the UKF",
                 "green + marks: the UKF's sigma points",
-                "dark square: the true car",
+                "dark square: the true AV",
             ]),
             ("Top right: the size of each belief", [
                 "the largest position sigma: exact, EKF and UKF",
@@ -284,14 +294,15 @@ def build_figure(d, sigma_theta0, dark_until, interactive=True):
                 "the UKF's mean stays on it",
             ]),
             ("Lengthen the unlit stretch", [
-                "the car drives further on the gyro alone",
+                "the AV drives further on the gyro alone",
                 "the banana grows, and the EKF drifts further",
             ]),
             ("Lower the heading sigma to 3 deg", [
-                "the two agree to a few centimeters: the EKF is enough",
+                "the two agree to about 0.1 m: the EKF is enough",
             ]),
             ("Watch the first match after the dark", [
-                "both snap back, but neither follows the exact belief at once",
+                "both snap back; for a few seconds the UKF sits about 1\u00a0m "
+                "off the exact belief, the EKF closer",
                 "a 14 m belief meeting a 1 m measurement: the particle "
                 "filter's job",
             ]),

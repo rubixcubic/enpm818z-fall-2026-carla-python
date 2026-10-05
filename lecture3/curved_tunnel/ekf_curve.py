@@ -2,12 +2,12 @@
 # improved by Anthropic Claude Opus 5.5.
 # Signed: Zeid Kootbally
 
-"""An extended Kalman filter for a car in a curved tunnel, with a live window.
+"""An extended Kalman filter for the AV in a curved tunnel, with a live window.
 
 The tunnel bends 120 degrees to the left. Turning puts a cosine in the motion,
 so no matrix F can describe it. The camera recognizes each emergency exit sign
 on the wall and matches it against the HD map, which knows where every sign is.
-It measures the sign's RANGE (how far) and BEARING (at what angle to the car's
+It measures the sign's RANGE (how far) and BEARING (at what angle to the AV's
 nose): a square root and an arctangent, so no matrix H describes it either.
 
 The EKF uses the real functions f and h for the mean, and their tangents, the
@@ -99,7 +99,7 @@ def h(x, sign):
     """Measurement model: the range and bearing the camera should report.
 
     Works on one state (3,) or many (N, 3): ukf_curve.py pushes sigma points
-    through it. Bearing is measured from the car's nose, positive to the left.
+    through it. Bearing is measured from the AV's nose, positive to the left.
     """
     x = np.asarray(x, float)
     dx, dy = sign[0] - x[..., 0], sign[1] - x[..., 1]
@@ -192,9 +192,9 @@ def jacobian_f(x, u, wrong_sign=False):
 def jacobian_h(x, sign):
     """H_k = dh/dx at the predicted state, for one sign.
 
-    Range row:   moving the car toward the sign shortens the range.
-    Bearing row: moving the car sideways swings the sign across the image, and
-                 turning the car's nose left by one radian moves the sign one
+    Range row:   moving the AV toward the sign shortens the range.
+    Bearing row: moving the AV sideways swings the sign across the image, and
+                 turning the AV's nose left by one radian moves the sign one
                  radian to the right: the -1 in the last column.
     """
     dx, dy = sign[0] - x[0], sign[1] - x[1]
@@ -254,11 +254,11 @@ def run_ekf(d, sigma_w=SIGMA_W_FILTER, sigma_range=SIGMA_RANGE, wrong_sign=False
             z = np.array([d["sign_range"][k], d["sign_bearing"][k]])
             Hk = jacobian_h(x, sign)          # the tangent of h, at the prediction
             nu = z - h(x, sign)               # the surprise goes through the real h
-            nu[1] = wrap(nu[1])               # angles wrap: place one
+            nu[1] = wrap(nu[1])               # wrap the bearing innovation (f wraps theta too)
             S = Hk @ P @ Hk.T + R
             K = P @ Hk.T @ np.linalg.inv(S)   # 3x2
             x = x + K @ nu
-            x[2] = wrap(x[2])                 # angles wrap: place two
+            x[2] = wrap(x[2])                 # and wrap the updated estimate
             P = (np.eye(3) - K @ Hk) @ P
         xs[k], Ps[k] = x, P
     return xs, Ps
@@ -374,7 +374,7 @@ def build_figure(d, sigma_w, sigma_range, interactive=True):
                      fontweight="bold")
     signs = draw_tunnel(ax_top)
     trail, = ax_top.plot([], [], color="#2D6CA2", lw=1, alpha=0.6)
-    true_dot, = ax_top.plot([], [], "s", color="#1E2939", ms=10, label="true car")
+    true_dot, = ax_top.plot([], [], "s", color="#1E2939", ms=10, label="true AV")
     est_dot, = ax_top.plot([], [], "o", color="#2D6CA2", ms=7, label="estimate")
     ell, = ax_top.plot([], [], color="#2D6CA2", lw=2, label="1-sigma ellipse (P)")
     arrow, = ax_top.plot([], [], color="#2D6CA2", lw=2.5)
@@ -414,7 +414,7 @@ def build_figure(d, sigma_w, sigma_range, interactive=True):
     add_help_panel(fig, [
         ("What you see", [
             ("Left: the curved tunnel", [
-                "dark square: the true car",
+                "dark square: the true AV",
                 "blue dot and arrow: the estimate and its heading",
                 "dashed fan: +/- 1 sigma of heading",
                 "blue ellipse: the position uncertainty",
@@ -425,7 +425,7 @@ def build_figure(d, sigma_w, sigma_range, interactive=True):
                 "climbs while only the gyro drives the prediction",
                 "drops at each match: the bearing tells the filter which "
                 "way the nose points",
-                "yellow shading: the car is in the bend",
+                "yellow shading: the AV is in the bend",
             ]),
             ("Bottom right: the honesty check", [
                 "The orange line is the true heading error: the estimated "

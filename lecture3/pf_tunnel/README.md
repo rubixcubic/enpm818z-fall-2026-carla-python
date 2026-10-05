@@ -1,10 +1,10 @@
 # L3 hands-on: a particle filter in a tunnel
 
-The car's computer restarted inside a 700 m tunnel. It knows its speed from the
+The AV's computer restarted inside a 700 m tunnel. It knows its speed from the
 wheels but not where it is. The camera matches two kinds of landmarks against
-the HD map: **lights**, one every 25 m and all identical, and **SOS niches**,
-only five and spaced irregularly. A light match fits 23 places at once; a
-niche match fits five. No bell curve can say that, so the belief is a crowd of
+the HD map: **lights**, one every 25 m and all identical (23 of them, none
+within 5 m of a niche), and **SOS niches**, only five and spaced irregularly.
+A light match fits 23 places at once; a niche match fits five. No bell curve can say that, so the belief is a crowd of
 particles.
 
 ## Requirements
@@ -53,7 +53,7 @@ python3 pf_tunnel.py --html pf.html      # no desktop? a web page
 
 ## The window
 
-- **Top:** the whole tunnel, unrolled, with the crowd, the true car, the
+- **Top:** the whole tunnel, unrolled, with the crowd, the true AV, the
   weighted average (what one bell curve would report) and the heaviest cluster.
 - **Middle:** the belief right now, as weight per 2 m.
 - **Bottom:** the error of the heaviest cluster and of the weighted average,
