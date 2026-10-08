@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Editors (lecture2/.vscode and lecture3/tunnel_kf/.vscode hold ~1.3 GB
+# IntelliSense databases each)
+.vscode/
+
+# Model weights: Ultralytics downloads them on first use (lecture4/README.md).
+*.pt
+
+# Figures and pages the lecture3 scripts write next to themselves
+lecture3/kalman_filter.png
+lecture3/ekf.png
+lecture3/ukf.png
+lecture3/particle_filter.png
+lecture3/**/*.html
+
+# Output folders suggested in the docstrings
+out/

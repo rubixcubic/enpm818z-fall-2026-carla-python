@@ -353,14 +353,17 @@ def add_help_panel(fig, sections, rect=(0.745, 0.10, 0.245, 0.84), width=56, fs=
         y -= line * 0.5
     return ax
 
-def build_figure(d, sigma_w, sigma_range, interactive=True):
+def build_figure(d, sigma_w, sigma_range, interactive=True, wrong_sign=False):
     import matplotlib.pyplot as plt
     from matplotlib.widgets import Button, CheckButtons, Slider
 
     t = d["t"]
     n = len(t)
     mrows = np.where(d["sign_id"] >= 0)[0]
-    state = {"k": 0, "playing": True, "sw": sigma_w, "sr": sigma_range, "wrong": False}
+    # --wrong-sign starts the window (and --snapshot, --html, --panels) with the
+    # wrong Jacobian, not only the console line.
+    state = {"k": 0, "playing": True, "sw": sigma_w, "sr": sigma_range,
+             "wrong": wrong_sign}
     res = {}
 
     fig = plt.figure(figsize=(17.5, 8.4))
@@ -522,7 +525,7 @@ def build_figure(d, sigma_w, sigma_range, interactive=True):
     b_rst = Button(ax_rst, "Restart")
     s_sw = Slider(ax_sw, "Q: gyro noise (deg/s)", 0.05, 10.0, valinit=np.degrees(sigma_w))
     s_sr = Slider(ax_sr, "R: sign range noise (m)", 0.05, 5.0, valinit=sigma_range)
-    chk = CheckButtons(ax_chk, ["wrong sign in the Jacobian"], [False])
+    chk = CheckButtons(ax_chk, ["wrong sign in the Jacobian"], [wrong_sign])
 
     def on_play(_):
         state["playing"] = not state["playing"]
@@ -654,7 +657,7 @@ def main():
     print(f"gyro noise {a.gyro_noise:.2f} deg/s, range noise {a.range_noise:.2f} m"
           f"{', WRONG Jacobian sign' if a.wrong_sign else ''}: position RMSE {pos:.2f} m, "
           f"heading RMSE {head:.1f} deg, heading inside 1-sigma {100 * inside:.0f}%")
-    animate_or_save(a, lambda live: build_figure(d, sw, a.range_noise, live),
+    animate_or_save(a, lambda live: build_figure(d, sw, a.range_noise, live, a.wrong_sign),
                     "EKF in a curved tunnel")
 
 
