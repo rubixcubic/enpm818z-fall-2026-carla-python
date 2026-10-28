@@ -54,6 +54,11 @@ def test_ade_fde_and_min_over_modes():
     assert m.fde(a, truth) == pytest.approx(4.0)
     mi_ade, mi_fde, best = m.min_ade_fde([a, b], truth)
     assert (mi_ade, mi_fde, best) == (pytest.approx(0.5), pytest.approx(0.0), 1)
+    # minADE is the ADE of the mode with the smallest FDE, not the smallest ADE
+    c = np.array([[1.0, 0.0], [2.0, 2.0]])                 # errors 0 and 2: ADE 1.0, FDE 2.0
+    d = np.array([[1.0, 1.5], [2.0, 1.5]])                 # errors 1.5 and 1.5: ADE 1.5, FDE 1.5
+    mi_ade, mi_fde, best = m.min_ade_fde([c, d], truth)
+    assert (mi_ade, mi_fde, best) == (pytest.approx(1.5), pytest.approx(1.5), 1)
 
 
 def test_idm_holds_its_equilibrium_gap():

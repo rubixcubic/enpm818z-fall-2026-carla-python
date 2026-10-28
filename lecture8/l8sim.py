@@ -166,7 +166,7 @@ def drive(lane, info, s0, v0, t, b=1.0, v_turn=None, a_up=1.0, v_cruise=V_CRUISE
             elif vk < v_cruise and (vk * vk - target * target) / (2 * b) < d - 2.0:
                 a = min(a_up, (v_cruise - vk) / 0.5)
             else:
-                a = 0.0
+                a = max(-b, min(0.0, (v_cruise - vk) / 0.5))
         else:
             a = np.clip((v_cruise - vk) / 0.5, -b, a_up)
         if wander and rng is not None:
@@ -471,9 +471,11 @@ def errors_by_horizon(pred, truth):
 
 
 def min_ade_fde(trajs, truth):
-    a = [ade(p, truth) for p in trajs]
+    """minADE and minFDE as Argoverse 2 defines them: both from the best mode, the one
+    whose end is closest to the truth. Returns (minADE, minFDE, index of that mode)."""
     f = [fde(p, truth) for p in trajs]
-    return min(a), min(f), int(np.argmin(f))
+    best = int(np.argmin(f))
+    return ade(trajs[best], truth), f[best], best
 
 
 # ----------------------------------------------------------------- our test set
@@ -520,7 +522,8 @@ def test_set(scene=None, speeds=(6.0, 7.0, 8.0, 9.0, 10.0), seeds=(1, 2, 3, 4), 
                     if modes:
                         mi = min_ade_fde([m["traj"] for m in modes], truth)
                         row.update(min_ade=mi[0], min_fde=mi[1], n_modes=len(modes),
-                                   p_true=float(sum(m["prob"] for m in modes if m["name"] == name)))
+                                   p_true=float(sum(m["prob"] for m in modes if m["name"] == name)),
+                                   mode_probs=[(m["name"] == name, float(m["prob"])) for m in modes])
                     var = cv_cov(st, h)
                     e = preds["cv"] - truth
                     row["cv_inside95"] = (np.sum(e ** 2, axis=1) / var) <= 5.991

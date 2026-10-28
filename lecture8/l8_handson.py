@@ -93,9 +93,7 @@ def part_scene(fig, sc, o, now):
             if n in trails:
                 past = o["t"] <= now + 1e-9
                 trails[n].set_data(o[n]["track"][past, 0], o[n]["track"][past, 1])
-        v = {n: o[n]["v"][state_at(o, n, now)[2]] for n in cars}
-        title.set_text(f"t = {now:+.1f} s   speeds: AV {v['AV']:.1f}, A {v['A']:.1f}, B {v['B']:.1f} m/s"
-                       "   (dots: the tracked positions the AV sees)")
+        title.set_text(f"t = {now:+.1f} s   (dots: the tracked positions the AV sees)")
     return update
 
 
