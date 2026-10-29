@@ -20,8 +20,8 @@ import l8sim as m
 import vehicle_icons as vi
 
 HERE = Path(__file__).resolve().parent
-CV, CTRV, CTRA, MAP, TRUTH = "#2D6CA2", "#7B4FA0", "#9A6A00", "#1E9E74", "#1E2939"
-COLORS = {"AV": "#1E2939", "A": "#D9694A", "B": "#8C8C8C"}
+CV, CTRV, CTRA, MAP, TRUTH = "#2D6CA2", "#7B4FA0", "#9A6A00", "#B0478A", "#1E2939"
+COLORS = {"AV": "#1E2939", "A": "#2E9E4A", "B": "#747474"}
 
 
 # ----------------------------------------------------------------- drawing
