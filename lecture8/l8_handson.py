@@ -17,6 +17,7 @@ import matplotlib
 import numpy as np
 
 import l8sim as m
+import vehicle_icons as vi
 
 HERE = Path(__file__).resolve().parent
 CV, CTRV, CTRA, MAP, TRUTH = "#2D6CA2", "#7B4FA0", "#9A6A00", "#1E9E74", "#1E2939"
@@ -37,25 +38,14 @@ def draw_road(ax, sc):
     ax.set_ylabel("y north (m)")
 
 
-def car_outline(xy, heading, L=m.CAR_LEN, W=1.9):
-    """Corners of a car whose rear-axle middle (its position) is at xy, 0.9 m in from the
-    rear bumper, facing `heading` (rad)."""
-    c, s = np.cos(heading), np.sin(heading)
-    fwd, left = np.array([c, s]), np.array([-s, c])
-    back = np.asarray(xy) - 0.9 * fwd
-    front = back + L * fwd
-    return np.array([back + W / 2 * left, front + W / 2 * left, front - W / 2 * left,
-                     back - W / 2 * left, back + W / 2 * left])
-
-
 class Car:
+    """A vehicle icon (icons/: the AV, car A, car B), sharp at any zoom, with its name above."""
     def __init__(self, ax, name):
-        self.body, = ax.fill([], [], color=COLORS[name], zorder=8)
+        self.icon = vi.Vehicle(ax, name, color=COLORS[name], zorder=8)
         self.label = ax.text(0, 0, name, fontsize=10, ha="center", va="bottom", zorder=9)
 
     def set(self, xy, heading):
-        poly = car_outline(xy, heading)
-        self.body.set_xy(poly)
+        self.icon.set(xy, heading)
         self.label.set_position((xy[0], xy[1] + 2.2))
 
 

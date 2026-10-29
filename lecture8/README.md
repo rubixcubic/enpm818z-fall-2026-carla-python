@@ -58,6 +58,8 @@ is chosen**: CARLA only gives the lanes.
 |---|---|
 | `l8sim.py` | the scene, the true motion, the track, the fit, the predictors, the scores, the test set |
 | `l8_handson.py` | the four parts |
+| `vehicle_icons.py` | draws the AV, car A and car B as vector icons, sharp at any zoom |
+| `icons/` | the three icons, by Stone from the Noun Project (thenounproject.com) |
 | `export_scene.py` | writes `l8_scene.npz` from `Town01.xodr` (needs the `carla` package, no server) |
 | `l8_scene.npz` | the lanes of junction 54 |
 | `tests/` | `python3 -m pytest -q tests` |
