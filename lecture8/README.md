@@ -32,10 +32,10 @@ y is flipped).
 - **Car B** follows car A and goes straight on. The Intelligent Driver Model (IDM)
   drives it.
 
-**t = 0 is "now"**, 2.0 s into A's braking. The predictors read only each car's
+**t = 0 is "now"**, 2.0 s into car A's braking. The predictors read only each car's
 **track**: its position every 0.1 s, with a 0.05 m error. Everything after "now" is
-the truth they must guess. Run 2 (the check box in part 4) moves the AV 24 m closer,
-so A's gap is 3.0 s and A waits. **The motion is simulated, and every number above
+the truth they must guess. Run #2 (the check box in part 4) moves the AV 24 m closer,
+so car A's gap is 3.0 s and car A waits. **The motion is simulated, and every number above
 is chosen**: CARLA only gives the lanes.
 
 ## What each part shows
@@ -46,11 +46,11 @@ is chosen**: CARLA only gives the lanes.
    and each one's error against the horizon. Move "now" into the turn (about 3 s) and
    see CTRV follow the curve, then keep turning.
 3. **modes**: the map gives car A two lanes, straight on and left. Each lane is one
-   future; its probability comes from how well it explains A's speed, heading and
+   future; its probability comes from how well it explains car A's speed, heading and
    offset from the lane's center (Bayes' rule). Right: P(left) against time.
 4. **interact**: left, car A's meters driven against time: the truth, the most likely
    mode, and the same mode with the gap rule. Right, car B's speed: the truth, CV,
-   and the IDM behind A's predicted future. Tick **AV 24 m closer** for run 2.
+   and the IDM behind car A's predicted future. Tick **AV 24 m closer** for run #2.
 
 ## Files
 

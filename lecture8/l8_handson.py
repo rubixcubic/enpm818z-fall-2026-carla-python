@@ -175,13 +175,13 @@ def part_modes(fig, sc, o, now):
 
 def part_interact(fig, sc, o, now, o2=None):
     from matplotlib.widgets import CheckButtons
-    runs = {"run 1": o, "run 2": o2 if o2 is not None else m.our_scene(sc, av_closer=24.0)}
+    runs = {"run #1": o, "run #2": o2 if o2 is not None else m.our_scene(sc, av_closer=24.0)}
     ax = fig.add_subplot(121)
     ax2 = fig.add_subplot(122)
     h = m.horizons()
     lav = sc["lanes"]["east_to_east"]
     la = sc["lanes"]["west_to_south"]
-    state = {"run": "run 1"}
+    state = {"run": "run #1"}
     check_ax = fig.add_axes([0.01, 0.02, 0.16, 0.08])
     check = CheckButtons(check_ax, ["AV 24 m closer"], [False])
     fig._l8_check = check
@@ -222,7 +222,7 @@ def part_interact(fig, sc, o, now, o2=None):
         fig.canvas.draw_idle()
 
     def toggle(_label):
-        state["run"] = "run 2" if check.get_status()[0] else "run 1"
+        state["run"] = "run #2" if check.get_status()[0] else "run #1"
         update(fig._l8_now())
     check.on_clicked(toggle)
     return update
