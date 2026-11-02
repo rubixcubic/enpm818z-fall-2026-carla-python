@@ -17,7 +17,7 @@ HERE = Path(__file__).resolve().parent
 
 # ----------------------------------------------------------------- chosen values
 AV = {"length": 4.5, "width": 1.9, "rear_to_base": 0.9,   # the course's AV drawing
-      "wheelbase": 2.875, "max_steer": 0.7}               # GP4's controller config
+      "wheelbase": 2.875, "max_steer": 0.7}               # wheelbase chosen; the 0.7 rad limit is GP4's
 SCENE = {"av_s": 60.0, "av_d": 0.0, "speed": 10.0,        # the AV on the right lane's center
          "car_s": 118.0, "car_d": -0.3,                    # the parked car, in the right lane
          "horizon": 70.0}                                  # meters of path ahead

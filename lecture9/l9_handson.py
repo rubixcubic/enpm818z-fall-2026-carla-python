@@ -10,7 +10,7 @@ Add --snapshot out.png to save a still, --html out.html for a page (needs mpld3)
 numpy and matplotlib only: no CARLA server, no GPU. The road comes from
 l9_scene.npz (export_scene.py read it from CARLA's Town03 map). The grid search
 and hybrid A* results in l9_results/ were computed in advance; this folder has no
-search code (GP4 Task 1 asks you to write A* yourself).
+search code (GP4 Task 2 asks you to write A* yourself).
 """
 import argparse
 import json
@@ -173,7 +173,7 @@ def part_sample(fig, ref, car):
         ax_m.set_xlabel("x (m)")
         ax_t.clear()
         ax_t.axis("off")
-        ax_t.text(0, 1, table_text(out), family="monospace", fontsize=8, va="top")
+        ax_t.text(0, 1, table_text(out, n=9), family="monospace", fontsize=8, va="top")
         fig.canvas.draw_idle()
     for s in list(sls.values()) + [car_sl]:
         s.on_changed(update)

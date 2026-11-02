@@ -32,7 +32,7 @@ seed (default 4, as on the slides).
    progress (meters of the 70 m horizon not covered). Green: the cheapest; gray:
    kept; rust: collides; purple dashed: too sharp (more than 3 m/s²); black
    dotted: stop behind. The sliders change the weights and where the car is
-   parked; the table on the right ranks the six cheapest.
+   parked; the table on the right ranks the nine kept paths.
 3. **drive**: the planner runs every 0.5 s. The AV drives the first 0.5 s of the
    cheapest path, then plans again from where it is. Step through the plans with
    the slider: the AV moves into the left lane, passes the car and comes back.
@@ -68,7 +68,7 @@ and lives at the top of `l9common.py`:
 
 | value | chosen |
 |---|---|
-| the AV | 4.5 m by 1.9 m, base link 0.9 m in from the rear bumper; wheelbase 2.875 m and steering limit 0.7 rad (GP4's controller config) |
+| the AV | 4.5 m by 1.9 m, base link 0.9 m in from the rear bumper; wheelbase 2.875 m (chosen for the lecture) and steering limit 0.7 rad (GP4's) |
 | the AV's start | `s = 60 m` on the right lane's center, 10 m/s |
 | the parked car | 4.5 m by 1.9 m, centered at `s = 118 m`, `d = -0.3 m` |
 | horizon | 70 m |
