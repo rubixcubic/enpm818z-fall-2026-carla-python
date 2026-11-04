@@ -207,9 +207,12 @@ def gaps(path, obstacles, offsets=None, r=None):
 
 
 # ----------------------------------------------------------------- costs
-def score(path, obstacles, speed, horizon, weights=WEIGHTS, progress=None, lane_width=3.5):
+def score(path, obstacles, speed, horizon, weights=WEIGHTS, progress=None, lane_width=3.5,
+          extra=None):
     """The four cost terms and their sum. A path is dropped (cost inf) if a gap falls
-    under MARGIN or its peak lateral acceleration passes A_LAT_MAX."""
+    under MARGIN or its peak lateral acceleration passes A_LAT_MAX. `extra`, if given,
+    is a function of the path whose cost is added as a fifth term, "extra" (the
+    in-class exercise, l9_exercise.py)."""
     g = gaps(path, obstacles)
     a_lat = speed ** 2 * np.abs(path["kappa"])
     gmin, apk = float(np.min(g)), float(np.max(a_lat))
@@ -219,6 +222,8 @@ def score(path, obstacles, speed, horizon, weights=WEIGHTS, progress=None, lane_
              "clearance": weights["clearance"] * max(0.0, CLEAR_SOFT - gmin),
              "lane": weights["lane"] * lanes + weights["center"] * off,
              "progress": weights["progress"] * (horizon - prog)}
+    if extra is not None:
+        terms["extra"] = float(extra(path))
     reason = None
     if gmin < MARGIN:
         reason = "collision"
@@ -239,20 +244,21 @@ def stop_behind(ref, s0, d_state, car, speed, horizon, scene=SCENE):
 
 
 def plan(ref, s0, d_state, obstacles, speed=SCENE["speed"], horizon=SCENE["horizon"],
-         weights=WEIGHTS, cands=CANDIDATES, scene=SCENE, with_stop=True):
+         weights=WEIGHTS, cands=CANDIDATES, scene=SCENE, with_stop=True, extra=None):
     """Every candidate, scored; the cheapest one first. The planner the hands-on
     runs: sample lateral end offsets and maneuver lengths, check, score, pick."""
     out = []
     for L in cands["maneuver"]:
         for de in cands["d_end"]:
             p = make_path(ref, s0, d_state, de, L, horizon)
-            out.append((p, score(p, obstacles, speed, horizon, weights, lane_width=ref["lane_width"])))
+            out.append((p, score(p, obstacles, speed, horizon, weights, lane_width=ref["lane_width"],
+                                 extra=extra)))
     ahead = scene["car_s"] - s0
     if with_stop and 0.0 < ahead < horizon + AV["length"]:
         p, prog = stop_behind(ref, s0, d_state, None, speed, horizon, scene)
         p["stop"] = True
         out.append((p, score(p, obstacles, speed, horizon, weights, progress=prog,
-                             lane_width=ref["lane_width"])))
+                             lane_width=ref["lane_width"], extra=extra)))
     out.sort(key=lambda ps: ps[1]["total"])
     return out
 

@@ -46,11 +46,40 @@ seed (default 4, as on the slides).
    into the spot (forward solid, reverse dashed), with every pose it expanded.
    This folder has no search code: in GP4 you write A* yourself.
 
+## In class: two exercises
+
+**Score the candidates in a spreadsheet.** Open `candidates.csv` in Excel, Google
+Sheets or LibreOffice Calc. One row per candidate path from the AV at `s = 60 m`:
+its end offset and maneuver length, its peak sideways acceleration, its smallest gap
+to the parked car, the lanes it ends away from the route's lane, how far it ends
+from a lane center, and the meters of the 70 m horizon it does not cover. The
+`dropped` column names the paths the planner removes before scoring (a collision, or
+more than 3 m/s² sideways): they get no cost. Put the weights in cells of their own,
+add one column per cost term and a total, and sort by the total. Then change one
+weight cell and sort again. `export_candidates.py` writes the file again from
+`l9common.py`.
+
+**Add a fifth cost term.** The four cost terms do not see the road's center line,
+where traffic comes the other way. Write `edge_cost` in `l9_exercise.py` (its
+docstring says what it measures), then:
+
+```bash
+python3 l9_check.py                          # PASS or FAIL for five paths
+python3 l9_handson.py --part sample --extra  # the table gets an "extra" column
+```
+
+Then raise `W_EDGE` in `l9_exercise.py` and run the sample part again: which path
+wins now, and what does the AV give up for it?
+
 ## The files
 
 | file | what it is |
 |---|---|
 | `l9_handson.py` | the five parts above |
+| `candidates.csv` | the candidate paths for the spreadsheet exercise |
+| `export_candidates.py` | writes `candidates.csv` from `l9common.py` |
+| `l9_exercise.py` | the code exercise: you write `edge_cost` |
+| `l9_check.py` | checks your `edge_cost` |
 | `l9common.py` | the road, the Frenet frame, the lateral curve, the circles, the costs, the RRT |
 | `export_scene.py` | reads `Town03.xodr` with `carla.Map` (offline) and writes `l9_scene.npz` |
 | `l9_scene.npz` | the right and left lane centers every 0.5 m, and the town's lanes for the overview |
