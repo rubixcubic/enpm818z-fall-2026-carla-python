@@ -313,12 +313,24 @@ def garage_obstacles():
     return cars
 
 
-def garage_goal():
-    """The goal pose: base link in the free top spot, the AV reversed in (facing down),
-    its rear bumper 0.8 m from the wall."""
-    top, _ = garage_spots()
-    x0, y0, x1, y1 = top[GARAGE["goal_spot"]]
-    return ((x0 + x1) / 2, y1 - 0.8 - AV["rear_to_base"], -np.pi / 2)
+def free_spots():
+    """The garage's free spots by name: "top7", the slides' goal, then the two free
+    spots of the bottom row ("bottom2", "bottom3")."""
+    return [f"top{GARAGE['goal_spot']}"] + [f"bottom{i}" for i in GARAGE["free_bottom"]]
+
+
+def garage_goal(spot=None):
+    """The goal pose: base link in a free spot, the AV reversed in, its rear bumper 0.8 m
+    from the wall. spot is one of free_spots(); by default the top one, as on the slides."""
+    spot = spot or free_spots()[0]
+    if spot not in free_spots():
+        raise ValueError(f"{spot} is not a free spot; choose one of {free_spots()}")
+    top, bottom = garage_spots()
+    if spot.startswith("top"):
+        x0, y0, x1, y1 = top[int(spot[3:])]
+        return ((x0 + x1) / 2, y1 - 0.8 - AV["rear_to_base"], -np.pi / 2)    # facing down
+    x0, y0, x1, y1 = bottom[int(spot[6:])]
+    return ((x0 + x1) / 2, y0 + 0.8 + AV["rear_to_base"], np.pi / 2)         # facing up
 
 
 def pose_free(x, y, h, rects, size=GARAGE["size"], margin=0.1):

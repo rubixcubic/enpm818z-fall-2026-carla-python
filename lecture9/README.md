@@ -39,7 +39,9 @@ seed (default 4, as on the slides).
 4. **rrt**: a rapidly exploring random tree from the AV's start in the garage to
    the entrance of the free spot. Each new node is a 1.5 m step from the nearest
    node toward a random point; the AV's three circles are checked along the step.
-   The slider shows the tree as it grows.
+   The slider shows the tree as it grows. `--goal-spot` picks the free spot: `top7`
+   (default, the slides' goal), or `bottom2` and `bottom3`, the two free spots near
+   the AV. `--part search` always shows the results for `top7`, computed in advance.
 5. **search**: results only, computed in advance and saved in
    `l9_results/garage_search.json`: the toy grid's step numbers from the slides,
    a grid search path through the garage, and the hybrid A* path that reverses

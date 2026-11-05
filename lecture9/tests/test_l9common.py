@@ -99,3 +99,12 @@ def test_rrt_is_reproducible_and_collision_free():
 def test_goal_pose_is_free():
     assert c.pose_free(*c.garage_goal(), c.garage_obstacles())
     assert c.pose_free(*c.GARAGE["start"], c.garage_obstacles())
+
+
+def test_rrt_reaches_every_free_spot():
+    rects = c.garage_obstacles()
+    for spot in c.free_spots():
+        assert c.pose_free(*c.garage_goal(spot), rects)
+        goal = np.array([c.garage_goal(spot)[0], 9.0])
+        res = c.rrt(c.GARAGE["start"], goal, rects, goal_bias=0.05, seed=4)
+        assert res["path"] is not None, spot

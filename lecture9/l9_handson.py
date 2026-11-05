@@ -4,6 +4,7 @@
   python3 l9_handson.py --part sample   # candidate paths, their costs, the cheapest
   python3 l9_handson.py --part drive    # re-planning every 0.5 s while passing the parked car
   python3 l9_handson.py --part rrt      # an RRT growing in the garage
+  python3 l9_handson.py --part rrt --goal-spot bottom2   # toward another free spot
   python3 l9_handson.py --part search   # grid search and hybrid A* results (read only)
 Add --snapshot out.png to save a still, --html out.html for a page (needs mpld3).
 
@@ -233,10 +234,12 @@ def draw_garage(ax):
     ax.set_ylim(-0.5, Hg + 0.5)
 
 
-def part_rrt(fig, ref, car, seed=4):
+def part_rrt(fig, ref, car, seed=4, spot=None):
     """An RRT from the AV's start to the spot's entrance. The slider shows the tree after
-    each number of added nodes; the path appears when the tree reaches the goal."""
-    goal = np.array([c.garage_goal()[0], 9.0])
+    each number of added nodes; the path appears when the tree reaches the goal. spot is
+    one of c.free_spots() (default "top7", the slides' goal)."""
+    spot = spot or c.free_spots()[0]
+    goal = np.array([c.garage_goal(spot)[0], 9.0])
     res = c.rrt(c.GARAGE["start"], goal, c.garage_obstacles(), goal_bias=0.05, seed=seed)
     nodes, par = res["nodes"], res["parents"]
     ax = fig.add_axes([0.06, 0.15, 0.9, 0.78])
@@ -253,7 +256,7 @@ def part_rrt(fig, ref, car, seed=4):
         ax.plot(*goal, "*", color=COL["coll"], ms=14)
         if n == len(nodes) and res["path"] is not None:
             ax.plot(res["path"][:, 0], res["path"][:, 1], color=COL["best"], lw=3)
-        ax.set_title(f"seed {seed}: {n} of {len(nodes)} nodes; goal reached at iteration {res['iterations']}")
+        ax.set_title(f"goal {spot}, seed {seed}: {n} of {len(nodes)} nodes; goal reached at iteration {res['iterations']}")
         fig.canvas.draw_idle()
     sl.on_changed(update)
     update()
@@ -314,12 +317,14 @@ def main(argv=None):
     ap.add_argument("--snapshot")
     ap.add_argument("--html")
     ap.add_argument("--seed", type=int, default=4, help="rrt: random seed (default 4, as on the slides)")
+    ap.add_argument("--goal-spot", choices=c.free_spots(), default=c.free_spots()[0],
+                    help="rrt: the free spot to drive to (default top7, as on the slides)")
     a = ap.parse_args(argv)
     ref = c.load_scene()
     car = c.parked_car(ref)
     fig = plt.figure(figsize=(13, 8))
     if a.part == "rrt":
-        part_rrt(fig, ref, car, seed=a.seed)
+        part_rrt(fig, ref, car, seed=a.seed, spot=a.goal_spot)
     else:
         {"scene": part_scene, "sample": part_sample, "drive": part_drive, "search": part_search}[a.part](fig, ref, car)
     if a.snapshot:
