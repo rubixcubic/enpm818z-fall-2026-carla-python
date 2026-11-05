@@ -5,7 +5,6 @@
   python3 l9_handson.py --part drive    # re-planning every 0.5 s while passing the parked car
   python3 l9_handson.py --part rrt      # an RRT growing in the garage
   python3 l9_handson.py --part search   # grid search and hybrid A* results (read only)
-  python3 l9_handson.py --part sample --extra   # with your edge_cost from l9_exercise.py
 Add --snapshot out.png to save a still, --html out.html for a page (needs mpld3).
 
 numpy and matplotlib only: no CARLA server, no GPU. The road comes from
@@ -126,20 +125,18 @@ def draw_candidates(ax_f, ax_m, ref, plan_out, s0):
 
 
 def table_text(plan_out, n=6):
-    extra = "extra" in plan_out[0][1]["terms"]
-    lines = ["rank  d_end  length  comfort clear  lane  progress" + ("  extra" if extra else "") + "  total"]
+    lines = ["rank  d_end  length  comfort clear  lane  progress  total"]
     for k, (p, sc) in enumerate(plan_out[:n]):
         t = sc["terms"]
         name = "stop" if p.get("stop") else f"{p['d_end']:5.1f}  {p['maneuver']:4.0f} m"
         lines.append(f"{k + 1:>3}   {name:>13}  {t['comfort']:6.2f} {t['clearance']:5.2f} {t['lane']:5.2f}"
-                     f"  {t['progress']:7.2f}" + (f"  {t['extra']:5.2f}" if extra else "")
-                     + f"  {sc['total']:6.2f}")
+                     f"  {t['progress']:7.2f}  {sc['total']:6.2f}")
     dropped = sum(sc["dropped"] is not None for _, sc in plan_out)
     lines.append(f"{len(plan_out)} candidates, {dropped} dropped (collision or too sharp)")
     return "\n".join(lines)
 
 
-def part_sample(fig, ref, car, extra=None):
+def part_sample(fig, ref, car):
     """Every candidate from the AV at s = 60 m, scored. The sliders change the weights
     and where the parked car is; the cheapest path is green."""
     ax_f = fig.add_axes([0.06, 0.58, 0.60, 0.36])
@@ -162,7 +159,7 @@ def part_sample(fig, ref, car, extra=None):
             w[n] = sls[n].val
         scene = dict(c.SCENE, car_s=car_sl.val)
         cr = c.parked_car(ref, scene)
-        out = c.plan(ref, s0, (0, 0, 0), [cr], weights=w, scene=scene, extra=extra)
+        out = c.plan(ref, s0, (0, 0, 0), [cr], weights=w, scene=scene)
         draw_road(ax_f, ref, s0 - 2, s0 + 72, frenet=True)
         draw_road(ax_m, ref, s0 - 2, s0 + 82)
         car_box(ax_f, ref, scene["car_s"], scene["car_d"], COL["car"], frenet=True)
@@ -176,7 +173,7 @@ def part_sample(fig, ref, car, extra=None):
         ax_m.set_xlabel("x (m)")
         ax_t.clear()
         ax_t.axis("off")
-        ax_t.text(0, 1, table_text(out, n=9), family="monospace", fontsize=7 if extra else 8, va="top")
+        ax_t.text(0, 1, table_text(out, n=9), family="monospace", fontsize=8, va="top")
         fig.canvas.draw_idle()
     for s in list(sls.values()) + [car_sl]:
         s.on_changed(update)
@@ -317,17 +314,12 @@ def main(argv=None):
     ap.add_argument("--snapshot")
     ap.add_argument("--html")
     ap.add_argument("--seed", type=int, default=4, help="rrt: random seed (default 4, as on the slides)")
-    ap.add_argument("--extra", action="store_true",
-                    help="sample: add edge_cost from l9_exercise.py as a fifth cost term")
     a = ap.parse_args(argv)
     ref = c.load_scene()
     car = c.parked_car(ref)
     fig = plt.figure(figsize=(13, 8))
     if a.part == "rrt":
         part_rrt(fig, ref, car, seed=a.seed)
-    elif a.part == "sample" and a.extra:
-        import l9_exercise
-        part_sample(fig, ref, car, extra=l9_exercise.edge_cost)
     else:
         {"scene": part_scene, "sample": part_sample, "drive": part_drive, "search": part_search}[a.part](fig, ref, car)
     if a.snapshot:
