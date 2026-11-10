@@ -2,7 +2,7 @@
 and the cubic and quintic speed changes.
 
 Frame: the turn's local frame, origin at the path's first point, x along the approach,
-y to its left (export_curve.py says how it comes from Town01's map frame). Headings
+y to its left (export_curve.py says how it comes from Town03's map frame). Headings
 are counterclockwise from x; a positive steering angle turns left.
 
 Nothing here steers or controls the speed. The controller runs in l10_results/ were

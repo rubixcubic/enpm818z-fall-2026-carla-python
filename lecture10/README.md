@@ -1,6 +1,6 @@
 # L10 hands-on: from a path to steering, throttle and brake
 
-Four parts, one Town01 turn. Needs `numpy` and `matplotlib`; no CARLA, no ROS.
+Four parts, one Town03 turn. Needs `numpy` and `matplotlib`; no CARLA, no ROS.
 
 ```bash
 python3 l10_handson.py --part bicycle   # 1. the bicycle model: one steering angle, one circle
@@ -21,7 +21,7 @@ Add `--snapshot out.png` to save a still instead of opening a window, or
    against the steering angle, with the two arcs of our turn marked.
 2. **profile**: the turn's speed profile (8 m/s, at most 2.0 m/s^2 sideways in the
    curves, braking at 2.0 m/s^2 and accelerating at 1.5 m/s^2), and two ways to slow
-   from 8 m/s to the turn's 3.15 m/s: a constant deceleration and a quintic. The
+   from 8 m/s to the turn's 3.46 m/s: a constant deceleration and a quintic. The
    bottom panels show the acceleration and the jerk of each.
 3. **pid**: the AV at rest, the target speed jumps to 8 m/s. Pick Kp, Ki, Kd and
    whether the integral is clamped; the top panel shows the speed, the bottom one the
@@ -35,6 +35,18 @@ Add `--snapshot out.png` to save a still instead of opening a window, or
 **The pid and track runs were computed in advance** and saved in `l10_results/`.
 This folder has no controller code: you write Pure Pursuit and the PID in GP4
 Task 2.
+
+## A behavior tree in plain Python
+
+`behavior_tree.py` builds the lecture's road tree from four node types (Condition,
+Action, Sequence, Fallback) and ticks it through five moments of a drive. No CARLA, no
+ROS, no libraries. Each line prints the action that runs and the conditions the tick
+checked, by their number on the slides.
+
+```bash
+python3 behavior_tree.py              # four branches: stop, pass, follow, lane keep
+python3 behavior_tree.py --no-pass    # the same tree with the pass branch removed
+```
 
 ## The simulation behind the runs
 
@@ -55,9 +67,9 @@ dynamics:
 
 ## The data
 
-- `l10_curve.npz`: the path, from `export_curve.py`, which reads `Town01.xodr`
+- `l10_curve.npz`: the path, from `export_curve.py`, which reads `Town03.xodr`
   offline with `carla.Map` (the CARLA 0.9.16 Python client, no server): 80 m of
-  road 12, the junction lane road 273 (a right turn), 40 m of road 23, every 0.25 m
+  road 3, the junction lane road 817 (a right turn), 40 m of road 19, every 0.25 m
   along the lane center. CARLA's y is flipped (x east, y north, as in lecture6),
   then the path is turned so the approach points along x.
 - `l10_results/pid_grid.npz`: 72 speed runs (Kp 0.25, 0.5, 1; Ki 0, 0.1, 0.3, 0.6;

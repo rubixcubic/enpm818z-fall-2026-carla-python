@@ -1,4 +1,4 @@
-"""L10 hands-on: from a path to steering, throttle and brake, on one Town01 turn.
+"""L10 hands-on: from a path to steering, throttle and brake, on one Town03 turn.
 
   python3 l10_handson.py --part bicycle   # the bicycle model: one steering angle, one circle
   python3 l10_handson.py --part profile   # the speed profile, and two ways to slow down
@@ -24,7 +24,7 @@ BLUE, ORANGE, GREEN, RED, GRAY = "#1f6fb4", "#c9682f", "#2e7d32", "#b03a2e", "0.
 
 
 # ------------------------------------------------------------------ part: bicycle
-def part_bicycle(fig, curve, delta0=0.30, v0=3.15):
+def part_bicycle(fig, curve, delta0=0.30, v0=3.46):
     """Hold one steering angle: the rear axle drives a circle of radius L / tan(delta).
     Left: 3 s of driving from the origin, and the circle. Right: the radius against the
     steering angle, with the two arcs of our turn marked."""
@@ -36,7 +36,7 @@ def part_bicycle(fig, curve, delta0=0.30, v0=3.15):
 
     d = np.linspace(0.02, c.MAX_STEER, 200)
     ax2.plot(d, c.turning_radius(d), color=BLUE)
-    for k, lab in ((0.1309, "first arc"), (0.2012, "second arc")):
+    for k, lab in ((0.1000, "first arc"), (0.1673, "second arc")):
         dk = np.arctan(c.WHEELBASE * k)
         ax2.plot([dk], [1 / k], "o", color=ORANGE)
         ax2.annotate(f"{lab}: R = {1 / k:.2f} m, delta = {dk:.3f} rad", (dk, 1 / k),
@@ -183,7 +183,7 @@ def part_track(fig, curve, res, choice="pp_Ld5"):
                          active=labels.index(choice))
     for txt in radio.labels:
         txt.set_fontsize(8)
-    hw = 2.0                                                    # half the 4.0 m lane
+    hw = 1.75                                                   # half the 3.5 m lane
 
     def draw(label):
         i = [_label_text(l) for l in labels].index(label)

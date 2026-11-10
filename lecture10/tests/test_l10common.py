@@ -3,16 +3,16 @@ import numpy as np
 import l10common as c
 
 
-def test_curve_is_the_town01_turn():
+def test_curve_is_the_town03_turn():
     d = c.load_curve()
-    assert abs(d["s"][-1] - 135.1) < 0.5
-    assert tuple(d["roads"][0]) == (12, 1) and tuple(d["roads"][-1]) == (23, 1)
-    # a right turn of 90 degrees: the heading ends at -pi/2
-    assert abs(d["heading"][-1] + np.pi / 2) < 0.01
-    # two arcs: radius 7.64 m and 4.97 m
+    assert abs(d["s"][-1] - 137.5) < 0.5
+    assert tuple(d["roads"][0]) == (3, 3) and tuple(d["roads"][-1]) == (19, 1)
+    # a right turn of 91 degrees: the heading ends near -pi/2
+    assert abs(d["heading"][-1] + np.radians(91.4)) < 0.01
+    # two arcs: radius 10.00 m and 5.98 m
     k = np.abs(d["kappa"])
-    assert abs(1 / np.median(k[(d["s"] > 83) & (d["s"] < 87)]) - 7.64) < 0.05
-    assert abs(1 / np.median(k[(d["s"] > 88) & (d["s"] < 91.5)]) - 4.97) < 0.05
+    assert abs(1 / np.median(k[(d["s"] > 84) & (d["s"] < 88.5)]) - 10.00) < 0.05
+    assert abs(1 / np.median(k[(d["s"] > 90) & (d["s"] < 94.5)]) - 5.98) < 0.05
 
 
 def test_bicycle_step_turns_on_the_circle():
@@ -41,6 +41,6 @@ def test_quintic_meets_its_six_conditions():
 
 
 def test_slow_down_quintic_stays_within_the_brake_limit():
-    sd = c.slow_down(8.0, 3.153, 2.0)
+    sd = c.slow_down(8.0, 3.458, 2.0)
     assert abs(sd["quintic"]["peak_a"] - 2.0) < 1e-3
     assert sd["quintic"]["D"] > sd["constant"]["D"]

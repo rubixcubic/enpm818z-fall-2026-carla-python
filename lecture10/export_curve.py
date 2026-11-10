@@ -1,17 +1,17 @@
-"""Export L10's running example: one right turn in Town01, read from the map file.
+"""Export L10's running example: one right turn in Town03, read from the map file.
 
-  /usr/bin/python3 export_curve.py --xodr /path/to/Town01.xodr
+  /usr/bin/python3 export_curve.py --xodr /path/to/Town03.xodr
 
 Needs the CARLA Python client (it ships with CARLA 0.9.16) but no CARLA server:
 carla.Map(name, xodr_text) reads the OpenDRIVE file offline.
 
-The path: 80 m of road 12 lane 1, the junction lane road 273 lane 1 (a right turn),
-then 40 m of road 23 lane 1, sampled every 0.25 m along the lane center.
+The path: 80 m of road 3, the junction lane road 817 lane 1 (a right turn), then 40 m
+of road 19, sampled every 0.25 m along the lane center (lanes 3.5 m wide).
 CARLA is left-handed (y to the right); y is flipped so x is east and y is north, and
 headings turn counterclockwise, as in lecture6. Those map coordinates are kept as
 x_map, y_map, heading_map. The lecture works in a local frame: origin at the path's
-first point, x along the approach, y to its left (the map turned by 180 degrees,
-because the approach drives west), so every figure reads left to right.
+first point, x along the approach, y to its left (the map turned by 90 degrees,
+because the approach drives north), so every figure reads left to right.
 
 Writes l10_curve.npz: s (m along the path), x, y (m, local frame), heading (rad, local
 frame), kappa (1/m, positive to the left), the map-frame copies, junction (True on the
@@ -26,7 +26,8 @@ HERE = Path(__file__).resolve().parent
 STEP = 0.25          # m between path points
 BEFORE = 80.0        # m of straight before the turn
 AFTER = 40.0         # m of straight after it
-TURN_ROAD, TURN_LANE = 273, 1
+TOWN = "Town03"
+TURN_ROAD, TURN_LANE = 817, 1
 
 
 def walk(wp, dist, forward):
@@ -43,7 +44,7 @@ def walk(wp, dist, forward):
 
 def export(xodr):
     import carla
-    m = carla.Map("Town01", Path(xodr).read_text())
+    m = carla.Map(TOWN, Path(xodr).read_text())
     start = [a for a, _ in m.get_topology() if a.road_id == TURN_ROAD and a.lane_id == TURN_LANE][0]
     turn = [start]
     while True:
@@ -74,7 +75,7 @@ def export(xodr):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--xodr", required=True, help="Town01.xodr (CARLA's OpenDRIVE map)")
+    ap.add_argument("--xodr", required=True, help="Town03.xodr (CARLA's OpenDRIVE map)")
     ap.add_argument("--out", default=str(HERE / "l10_curve.npz"))
     a = ap.parse_args(argv)
     d = export(a.xodr)
