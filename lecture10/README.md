@@ -48,6 +48,23 @@ python3 behavior_tree.py              # four branches: stop, pass, follow, lane 
 python3 behavior_tree.py --no-pass    # the same tree with the pass branch removed
 ```
 
+`behavior_tree_gui.py` opens the same tree in a window and redraws one tick after every
+change. On the left, change the tree: turn a branch on or off, move the selected branch
+earlier or later, and set each condition's threshold. On the right, change the road: the
+stop line, the car ahead (its distance and how long it has been slow) and a car in the
+left lane. Each node is colored by the status it returned (green Success, red Failure,
+yellow Running, white not ticked), and the title says which action runs. It needs only
+matplotlib and numpy.
+
+```bash
+python3 behavior_tree_gui.py                     # the window
+python3 behavior_tree_gui.py --snapshot bt.png   # one picture of the start, no window
+```
+
+Libraries for larger trees: `py_trees` (Python, `pip install py_trees`), `py_trees_ros`
+(Python, for ROS 2) and BehaviorTree.CPP (C++17, the library Nav2 uses; its editor is
+Groot2).
+
 ## The simulation behind the runs
 
 The kinematic bicycle model at the rear axle, stepped 100 times a second, with the
